@@ -207,36 +207,54 @@ const Store = (() => {
   }
   async function set(k, v) { if (!cloud) { localStorage.setItem('fin_' + k, v); return; } await call('setItem', k, v); }
   async function del(keys) { if (!keys.length) return; if (!cloud) { keys.forEach(k => localStorage.removeItem('fin_' + k)); return; } await call('removeItems', keys); }
-  let meta = {v:1, blobs:{}};
-  async function loadAll() {
-    const m = (await getMany(['meta'])).meta;
-    if (!m) return null;
-    meta = JSON.parse(m);
+  // meta — оглавление: какие блоки есть и из скольких кусков каждый
+  async function readMeta() { const m = (await getMany(['meta'])).meta; return m ? JSON.parse(m) : null; }
+  async function readBlobs(meta, names) {
     const keys = [];
-    for (const [name, n] of Object.entries(meta.blobs)) for (let i = 0; i < n; i++) keys.push(name + '__' + i);
-    const vals = await getMany(keys);
-    const res = {};
-    for (const [name, n] of Object.entries(meta.blobs)) {
-      let s = ''; for (let i = 0; i < n; i++) s += vals[name + '__' + i] || '';
-      try { res[name] = JSON.parse(s); } catch (e) { console.error('Повреждён блок', name, e); res[name] = null; }
+    for (const name of names) for (let i = 0; i < (meta.blobs[name] || 0); i++) keys.push(name + '__' + i);
+    const vals = await getMany(keys), res = {}, bad = [];
+    for (const name of names) {
+      const n = meta.blobs[name] || 0;
+      if (!n) { res[name] = null; continue; }
+      let str = ''; for (let i = 0; i < n; i++) str += vals[name + '__' + i] || '';
+      try { res[name] = JSON.parse(str); } catch (e) { console.error('Повреждён блок', name, e); res[name] = null; bad.push(name); }
     }
-    return res;
+    return {res, bad};
   }
+  // Все операции с хранилищем идут по очереди, чтобы чтение не попало на середину записи
   let queue = Promise.resolve();
-  function save(name, data) {
-    queue = queue.then(async () => {
-      const s = data == null ? '' : JSON.stringify(data);
-      const parts = []; for (let i = 0; i < s.length; i += CH) parts.push(s.slice(i, i + CH));
-      const old = meta.blobs[name] || 0;
+  function enqueue(job) { const p = queue.then(job); queue = p.catch(() => {}); return p; }
+  function loadAll() {
+    return enqueue(async () => {
+      const meta = await readMeta();
+      if (!meta) return null;
+      const {res, bad} = await readBlobs(meta, Object.keys(meta.blobs));
+      res._bad = bad;
+      return res;
+    });
+  }
+  /* Безопасное сохранение: перед записью заново читаем свежую версию блока из облака
+     (её могло изменить другое устройство), передаём в fn и записываем результат.
+     fallback() — локальная версия на случай, если блок в облаке повреждён. */
+  function update(name, fn, fallback) {
+    return enqueue(async () => {
+      const meta0 = await readMeta() || {v:1, blobs:{}};
+      const {res, bad} = await readBlobs(meta0, [name]);
+      const data = fn(bad.length && fallback ? fallback() : res[name]);
+      const str = data == null ? '' : JSON.stringify(data);
+      const parts = []; for (let i = 0; i < str.length; i += CH) parts.push(str.slice(i, i + CH));
       for (let i = 0; i < parts.length; i++) await set(name + '__' + i, parts[i]);
+      const meta = await readMeta() || {v:1, blobs:{}};  // ещё раз свежее оглавление — меняем только свою строку
+      const old = Math.max(meta.blobs[name] || 0, meta0.blobs[name] || 0);
       if (parts.length) meta.blobs[name] = parts.length; else delete meta.blobs[name];
       await set('meta', JSON.stringify(meta));
       const extra = []; for (let i = parts.length; i < old; i++) extra.push(name + '__' + i);
       await del(extra);
-    }).catch(e => { console.error(e); toast('Не удалось сохранить: ' + e); });
-    return queue;
+      return data;
+    }).catch(e => { console.error(e); toast('Не удалось сохранить: ' + e); throw e; });
   }
-  return {loadAll, save, cloud};
+  const save = (name, data) => update(name, () => data);
+  return {loadAll, update, save, cloud};
 })();
 
 /* ================= Курсы валют (ЦБ РФ) =================
@@ -347,11 +365,78 @@ const effMonth = t => { if (t.type === 'refund' && t.ref) { const o = txById(t.r
 const sortTx = (a, b) => b.date.localeCompare(a.date) || (b.id > a.id ? 1 : -1);
 
 const monthKey = m => 'tx_' + m.replace('-', '_');
-function saveMonths(months) {
-  months.forEach(m => { const list = D.tx.filter(t => t.date.slice(0,7) === m); Store.save(monthKey(m), list.length ? list : null); });
+
+/* ===== Синхронизация =====
+   Сохраняем не «весь список целиком», а изменения: какие записи добавлены/изменены и какие удалены.
+   Перед записью изменения накладываются на свежую версию из облака, поэтому правки,
+   сделанные на другом устройстве, не затираются. Пока запись идёт, локальная правка «в приоритете». */
+const pend = {put:new Map(), del:new Map()};
+const inc = (map, k) => map.set(k, (map.get(k) || 0) + 1);
+const dec = (map, k) => { const n = (map.get(k) || 1) - 1; n ? map.set(k, n) : map.delete(k); };
+function mergeRecs(remote, puts, dels) {
+  const map = new Map((remote || []).map(r => [r.id, r]));
+  dels.forEach(id => map.delete(id));
+  puts.forEach(r => map.set(r.id, r));
+  const list = [...map.values()];
+  return list.length ? list : null;
 }
-const saveAccounts = () => Store.save('accounts', D.accounts);
-const saveCats = () => Store.save('cats', D.cats);
+let _rt = null;
+function refreshView() {
+  clearTimeout(_rt);
+  _rt = setTimeout(() => {
+    const a = document.activeElement;
+    if (a && a.classList && a.classList.contains('search')) renderOpsList(); else render();
+  }, 30);
+}
+// Применить пришедший из облака список коллекции (accounts / cats), не теряя незаписанных локальных правок
+function applyColl(key, list) {
+  const locals = new Map(D[key].filter(x => pend.put.has(key + '|' + x.id)).map(x => [x.id, x]));
+  const out = (list || []).filter(x => !pend.del.has(key + '|' + x.id)).map(x => locals.get(x.id) || x);
+  for (const [id, x] of locals) if (!out.some(o => o.id === id)) out.push(x);
+  D[key] = out; refreshView();
+}
+function applyMonth(m, list) {
+  const keep = D.tx.filter(t => t.date.slice(0,7) !== m || pend.put.has(t.date.slice(0,7) + '|' + t.id));
+  const ids = new Set(keep.map(t => t.id));
+  D.tx = keep.concat((list || []).filter(r => !ids.has(r.id) && r.date.slice(0,7) === m && !pend.del.has(m + '|' + r.id)));
+  refreshView();
+}
+function syncColl(key, puts = [], dels = []) {
+  puts.forEach(x => inc(pend.put, key + '|' + x.id)); dels.forEach(id => inc(pend.del, key + '|' + id));
+  const done = () => { puts.forEach(x => dec(pend.put, key + '|' + x.id)); dels.forEach(id => dec(pend.del, key + '|' + id)); };
+  return Store.update(key, remote => mergeRecs(remote, puts, dels), () => D[key])
+    .then(list => { done(); applyColl(key, list); }, done);
+}
+// puts — операции (сохраняются в месяц своей даты); dels — [[id, месяц], ...]
+function syncTx(puts = [], dels = []) {
+  const byM = {}, g = m => byM[m] || (byM[m] = {puts:[], dels:[]});
+  puts.forEach(t => g(t.date.slice(0,7)).puts.push(t));
+  dels.forEach(([id, m]) => g(m).dels.push(id));
+  return Promise.all(Object.entries(byM).map(([m, ch]) => {
+    ch.puts.forEach(t => inc(pend.put, m + '|' + t.id)); ch.dels.forEach(id => inc(pend.del, m + '|' + id));
+    const done = () => { ch.puts.forEach(t => dec(pend.put, m + '|' + t.id)); ch.dels.forEach(id => dec(pend.del, m + '|' + id)); };
+    return Store.update(monthKey(m), remote => mergeRecs(remote, ch.puts, ch.dels), () => D.tx.filter(t => t.date.slice(0,7) === m))
+      .then(list => { done(); applyMonth(m, list); }, done);
+  }));
+}
+// Полная перезагрузка из облака (при возврате в приложение)
+let reloading = false;
+async function reloadAll() {
+  if (reloading) return;
+  reloading = true;
+  try {
+    const res = await Store.loadAll(); if (!res) return;
+    if (!res._bad.includes('accounts')) applyColl('accounts', res.accounts || []);
+    if (!res._bad.includes('cats')) applyColl('cats', res.cats || []);
+    const badMonths = new Set(res._bad.filter(k => k.startsWith('tx_')));
+    const remote = [];
+    for (const [k, v] of Object.entries(res)) if (k.startsWith('tx_') && Array.isArray(v)) remote.push(...v);
+    const keep = D.tx.filter(t => pend.put.has(t.date.slice(0,7) + '|' + t.id) || badMonths.has(monthKey(t.date.slice(0,7))));
+    const ids = new Set(keep.map(t => t.id));
+    D.tx = keep.concat(remote.filter(t => !ids.has(t.id) && !pend.del.has(t.date.slice(0,7) + '|' + t.id)));
+    refreshView();
+  } catch (e) { console.error(e); } finally { reloading = false; }
+}
 
 // Изменения балансов от одной операции: [[счёт, сумма в валюте счёта], ...]
 function deltas(t) {
@@ -771,12 +856,12 @@ function saveTx() {
   }
   if (d.title.trim()) t.title = d.title.trim();
   if (d.note.trim()) t.note = d.note.trim();
-  const months = new Set([t.date.slice(0,7)]);
   const i = D.tx.findIndex(x => x.id === t.id);
-  if (i >= 0) { months.add(D.tx[i].date.slice(0,7)); D.tx[i] = t; } else D.tx.push(t);
+  const oldM = i >= 0 ? D.tx[i].date.slice(0,7) : null;
+  if (i >= 0) D.tx[i] = t; else D.tx.push(t);
   ui.lastAcc = t.acc;
   if (!d.id && ui.tab === 'ops' && !ui.search) ui.month = t.date.slice(0,7);
-  saveMonths(months); haptic('success'); toast('Сохранено');
+  syncTx([t], oldM && oldM !== t.date.slice(0,7) ? [[t.id, oldM]] : []); haptic('success'); toast('Сохранено');
   back(); render();
 }
 async function delTx() {
@@ -784,7 +869,7 @@ async function delTx() {
   const r = t.type === 'expense' ? refundedSum(t.id) : 0;
   if (!await ask(r ? 'Удалить покупку? Привязанные к ней возвраты останутся, но будут считаться отдельно.' : 'Удалить операцию?')) return;
   D.tx = D.tx.filter(x => x.id !== t.id);
-  saveMonths([t.date.slice(0,7)]); haptic('warning');
+  syncTx([], [[t.id, t.date.slice(0,7)]]); haptic('warning');
   back(); render();
 }
 
@@ -817,14 +902,14 @@ function saveAcc() {
   if (d.archived) a.archived = true;
   const i = D.accounts.findIndex(x => x.id === a.id);
   if (i >= 0) D.accounts[i] = a; else D.accounts.push(a);
-  saveAccounts(); haptic('success'); back(); render();
+  syncColl('accounts', [a]); haptic('success'); back(); render();
 }
 async function delAcc() {
   const id = draft.id;
   if (D.tx.some(t => t.acc === id || t.to === id)) return toast('По счёту есть операции. Отметьте «В архиве», чтобы скрыть его.');
   if (!await ask('Удалить счёт?')) return;
   D.accounts = D.accounts.filter(a => a.id !== id);
-  saveAccounts(); stack.length = 0; showSheet(); render();
+  syncColl('accounts', [], [id]); stack.length = 0; showSheet(); render();
 }
 
 /* ================= Категории ================= */
@@ -850,7 +935,7 @@ function saveCat() {
   if (d.parent) c.parent = d.parent; else c.color = d.color;
   const i = D.cats.findIndex(x => x.id === c.id);
   if (i >= 0) D.cats[i] = c; else D.cats.push(c);
-  saveCats(); haptic('success'); back(); render();
+  syncColl('cats', [c]); haptic('success'); back(); render();
 }
 async function delCat() {
   const c = catById(draft.id); if (!c) return back();
@@ -858,10 +943,9 @@ async function delCat() {
   const used = D.tx.filter(t => t.cat === c.id);
   const target = c.parent ? `«${catById(c.parent).name}»` : '«Без категории»';
   if (!await ask(`Удалить «${c.name}»?` + (used.length ? ` ${used.length} операц. перейдут в ${target}.` : ''))) return;
-  const months = new Set();
-  used.forEach(t => { if (c.parent) t.cat = c.parent; else delete t.cat; months.add(t.date.slice(0,7)); });
+  used.forEach(t => { if (c.parent) t.cat = c.parent; else delete t.cat; });
   D.cats = D.cats.filter(x => x.id !== c.id);
-  saveCats(); saveMonths(months); back(); render();
+  syncColl('cats', [], [c.id]); if (used.length) syncTx(used); back(); render();
 }
 
 /* Операции категории за период (из аналитики) */
@@ -912,7 +996,9 @@ async function doRestore() {
   if (!await ask(`Заменить данные? В копии: ${data.accounts.length} счетов, ${data.cats.length} категорий, ${data.tx.length} операций.`)) return;
   const months = new Set([...D.tx, ...data.tx].map(t => t.date.slice(0,7)));
   D = {accounts:data.accounts, cats:data.cats, tx:data.tx};
-  saveAccounts(); saveCats(); saveMonths(months);
+  // Восстановление — намеренная полная замена, без слияния
+  Store.save('accounts', D.accounts); Store.save('cats', D.cats);
+  months.forEach(m => { const list = D.tx.filter(t => t.date.slice(0,7) === m); Store.save(monthKey(m), list.length ? list : null); });
   stack.length = 0; showSheet(); render(); toast('Данные восстановлены');
 }
 
@@ -947,7 +1033,7 @@ async function init() {
   document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { ui.tab = b.dataset.tab; render(); window.scrollTo(0, 0); });
   try {
     const res = await Store.loadAll();
-    if (!res) { seed(); await saveAccounts(); await saveCats(); }
+    if (!res) { seed(); await Store.save('accounts', D.accounts); await Store.save('cats', D.cats); }
     else {
       D = {accounts:res.accounts || [], cats:res.cats || [], tx:[]};
       for (const [k, v] of Object.entries(res)) if (k.startsWith('tx_') && Array.isArray(v)) D.tx.push(...v);
@@ -957,6 +1043,9 @@ async function init() {
     return;
   }
   render();
+  // Вернулись в приложение (с другого устройства могли что-то добавить) — подтягиваем свежие данные
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reloadAll(); });
+  if (IN_TG) { try { TG.onEvent('activated', reloadAll); } catch (e) {} }
 }
 init();
 </script>
