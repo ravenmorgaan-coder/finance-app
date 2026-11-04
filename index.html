@@ -158,7 +158,7 @@ const WD = ['воскресенье','понедельник','вторник','
 const NF = new Intl.NumberFormat('ru-RU', {minimumFractionDigits:0, maximumFractionDigits:2});
 const CURS = {
   RUB:{s:'₽', n:'Рубль'}, USD:{s:'$', n:'Доллар США'}, EUR:{s:'€', n:'Евро'}, JPY:{s:'¥', n:'Японская иена'},
-  CNY:{s:'CN¥', n:'Китайский юань'}, THB:{s:'฿', n:'Тайский бат'}, BYN:{s:'Br', n:'Белорусский рубль'},
+  CNY:{s:'元', n:'Китайский юань'}, THB:{s:'฿', n:'Тайский бат'}, BYN:{s:'Br', n:'Белорусский рубль'},
 };
 const money = (n, sign = '', cur = 'RUB') => sign + NF.format(Math.abs(r2(n))) + ' ' + (CURS[cur] || {s:cur}).s;
 const signed = (n, cur) => money(n, n < 0 ? '−' : '', cur);
