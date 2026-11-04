@@ -93,6 +93,10 @@ label textarea{resize:vertical}
 .mv:active{background:var(--accent);color:var(--accent-text)}
 .mv:disabled{opacity:.2;cursor:default}
 .mv.add{color:var(--accent)}
+.sbar{display:flex;gap:8px;align-items:stretch;margin-bottom:10px}
+.sbar .searchbox{flex:1;margin-bottom:0}
+.mv.tall{width:46px;height:auto;min-height:44px;background:var(--card);border:1px solid var(--line);color:var(--hint)}
+.mv.tall.on{background:var(--accent);color:var(--accent-text);border-color:transparent}
 .subic{width:26px!important;height:26px!important;border-radius:8px!important}
 .subic .i{width:15px;height:15px}
 .day{color:var(--hint);font-size:13px;margin:14px 4px 6px}
@@ -259,6 +263,7 @@ const ICONS = {
   cal:'<rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M9 3v4M15 3v4"/>',
   down:'<path d="M7 10l5 5 5-5"/>',
   up:'<path d="M7 14l5-5 5 5"/>',
+  sort:'<path d="M8 4v16M4.5 7.5L8 4l3.5 3.5M16 20V4M12.5 16.5L16 20l3.5-3.5"/>',
   check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',
 };
 /* Библиотека иконок для категорий */
@@ -524,7 +529,14 @@ const refundedSum = (id, exceptId) => {
 };
 // Возврат, привязанный к покупке, уменьшает расход в месяце покупки
 const effMonth = t => { if (t.type === 'refund' && t.ref) { const o = txById(t.ref); if (o) return o.date.slice(0,7); } return t.date.slice(0,7); };
-const sortTx = (a, b) => b.date.localeCompare(a.date) || (b.id > a.id ? 1 : -1);
+// Сортировка: новые дни сверху; внутри дня — ваш порядок (поле pos), а без него — последние добавленные сверху
+const dayCmp = (a, b) => {
+  if (a.pos == null && b.pos == null) return b.id > a.id ? 1 : -1;
+  if (a.pos == null) return -1;   // только что добавленные (без pos) — наверх дня
+  if (b.pos == null) return 1;
+  return a.pos - b.pos || (b.id > a.id ? 1 : -1);
+};
+const sortTx = (a, b) => b.date.localeCompare(a.date) || dayCmp(a, b);
 
 const monthKey = m => 'tx_' + m.replace('-', '_');
 
@@ -669,7 +681,7 @@ function render() {
   if (ui.tab === 'ops') renderOpsList();
 }
 
-function txRow(t) {
+function txRow(t, mv) {
   const c = catById(t.cat), cur = curOf(t);
   let ico, title, sub, amt, small = '', cls = '', extra = '';
   if (t.type === 'transfer') {
@@ -689,22 +701,42 @@ function txRow(t) {
   if (t.type === 'expense' || t.type === 'income') { const r = refundedSum(t.id); if (r > 0) extra = `<div class="tag">возвращено ${money(r, '', cur)} · чистый ${t.type === 'expense' ? 'расход' : 'доход'} ${money(t.amount - r, '', cur)}</div>`; }
   if (t.type === 'refund') { const o = t.ref && txById(t.ref); extra = `<div class="tag">${isIncRefund(t) ? 'возврат дохода' : 'возврат'}${o ? ` за «${esc(o.title || catPath(o.cat) || 'операцию')}» от ${shortDate(o.date)} (${money(o.amount, '', curOf(o))})` : ''}</div>`; }
   // Заметки в общем списке не показываем — они видны, когда открываешь операцию
-  return `<div class="row" onclick="App.editTx('${t.id}')">${ico}<div class="mid"><div class="tt">${esc(title)}</div><div class="sub">${sub}</div>${extra}</div><div class="amt ${cls}">${amt}${small ? `<div class="rub">${small}</div>` : ''}</div></div>`;
+  return `<div class="row" ${mv ? '' : `onclick="App.editTx('${t.id}')"`}>${ico}<div class="mid"><div class="tt">${esc(title)}</div><div class="sub">${sub}</div>${extra}</div><div class="amt ${cls}">${amt}${small ? `<div class="rub">${small}</div>` : ''}</div>${mv || ''}</div>`;
 }
-function groupByDay(list) {
+function groupByDay(list, reorder) {
   let html = '', cur = null;
+  const mvs = (t, i, n) => `<div class="mvs" style="margin-left:2px">
+    <button class="mv" ${i === 0 ? 'disabled' : ''} onclick="App.moveTx('${t.id}',-1)" aria-label="Выше">${icon('up', 18)}</button>
+    <button class="mv" ${i === n - 1 ? 'disabled' : ''} onclick="App.moveTx('${t.id}',1)" aria-label="Ниже">${icon('down', 18)}</button></div>`;
   for (const t of list) {
     if (t.date !== cur) { if (cur) html += '</div>'; cur = t.date; html += `<div class="day">${dayLabel(t.date)}</div><div class="card">`; }
-    html += txRow(t);
+    if (reorder) { const day = list.filter(x => x.date === t.date), i = day.indexOf(t); html += txRow(t, mvs(t, i, day.length)); }
+    else html += txRow(t);
   }
   return html + (cur ? '</div>' : '');
+}
+// Сдвиг операции на одну позицию внутри своего дня
+const opsVisible = t => ui.filter === 'all' || t.type === ui.filter;
+function moveTx(id, dir) {
+  const t = txById(id); if (!t) return;
+  const vis = D.tx.filter(x => x.date === t.date && opsVisible(x)).sort(sortTx);
+  const nb = vis[vis.indexOf(t) + dir]; if (!nb) return;
+  const full = D.tx.filter(x => x.date === t.date).sort(sortTx);
+  const i = full.indexOf(t), j = full.indexOf(nb);
+  [full[i], full[j]] = [full[j], full[i]];
+  const puts = [];
+  full.forEach((x, k) => { if (x.pos !== k) { x.pos = k; puts.push(x); } });
+  if (puts.length) syncTx(puts);
+  try { IN_TG && TG.HapticFeedback.selectionChanged(); } catch (_) {}
+  renderOpsList();
 }
 
 function viewOps() {
   const a = analyze(m => m === ui.month);
   return `${monthNav('App.opsMonth(-1)', 'App.opsMonth(1)', monthLabel(ui.month))}
     ${summary(a)}
-    <div class="searchbox">${icon('search', 18)}<input class="search" type="search" placeholder="Поиск по названию и заметкам" value="${esc(ui.search)}" oninput="App.search(this.value)"></div>
+    <div class="sbar"><div class="searchbox">${icon('search', 18)}<input class="search" type="search" placeholder="Поиск по названию и заметкам" value="${esc(ui.search)}" oninput="App.search(this.value)"></div>
+      <button class="mv tall ${ui.reorder ? 'on' : ''}" onclick="App.toggleReorder()" aria-label="Изменить порядок">${icon('sort', 20)}</button></div>
     <div class="chips">${[['all','Все'],['expense','Расходы'],['income','Доходы'],['transfer','Переводы'],['refund','Возвраты']].map(([k, l]) => `<button class="chip ${ui.filter === k ? 'on' : ''}" onclick="App.set('filter','${k}')">${l}</button>`).join('')}</div>
     <div id="opsList"></div>`;
 }
@@ -713,8 +745,10 @@ function renderOpsList() {
   const list = D.tx.filter(t =>
     (q ? [t.title, t.note, catPath(t.cat)].join(' ').toLowerCase().includes(q) : t.date.slice(0,7) === ui.month) &&
     (ui.filter === 'all' || t.type === ui.filter)).sort(sortTx);
+  const reorder = ui.reorder && !q;
   $('#opsList').innerHTML = (q ? `<div class="hint pad">Поиск по всем месяцам: ${list.length}</div>` : '') +
-    (list.length ? groupByDay(list) : `<div class="empty">${q ? 'Ничего не найдено' : 'В этом месяце операций нет.<br>Нажмите «+», чтобы добавить.'}</div>`);
+    (reorder ? `<div class="hint pad" style="padding-top:4px">Стрелки меняют порядок операций внутри дня. Нажмите ${icon('sort', 14).replace('class="i"', 'class="i" style="display:inline;vertical-align:-2px"')} еще раз, чтобы закончить.</div>` : '') +
+    (list.length ? groupByDay(list, reorder) : `<div class="empty">${q ? 'Ничего не найдено' : 'В этом месяце операций нет.<br>Нажмите «+», чтобы добавить.'}</div>`);
 }
 
 function viewAn() {
@@ -1155,6 +1189,8 @@ function saveTx() {
   }
   if (d.title.trim()) t.title = d.title.trim();
   if (d.note.trim()) t.note = d.note.trim();
+  const prev = d.id && txById(d.id);
+  if (prev && prev.date === t.date && prev.pos != null) t.pos = prev.pos;   // место внутри дня сохраняется при редактировании
   const i = D.tx.findIndex(x => x.id === t.id);
   const oldM = i >= 0 ? D.tx[i].date.slice(0,7) : null;
   if (i >= 0) D.tx[i] = t; else D.tx.push(t);
@@ -1317,7 +1353,8 @@ async function doRestore() {
 /* ================= Связка с кнопками ================= */
 window.App = {
   newTx, editTx, saveTx, delTx, dtype, pickRef, df, accView,
-  moveCat, pick, pickAcc, pickCur,
+  moveCat, moveTx, pick, pickAcc, pickCur,
+  toggleReorder() { ui.reorder = !ui.reorder; render(); },
   rk(v) { const d = draft; if (d.rk === v) return; d.rk = v; d.ref = ''; const c = catById(d.cat); if (c && c.type !== catTypeOf(d)) d.cat = ''; showSheet(); },
   refSearch(v) { refQ = v; const el = $('#refList'); if (el) el.innerHTML = refListHtml(); },
   pickRefId(id) { back(); pickRef(id); }, pickAccType, pickRefTx, pickParent, pickCat, setCat,
