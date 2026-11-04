@@ -763,7 +763,9 @@ function donut(groups, type) {
     `<span class="hint">${title}</span><b>${money(total)}</b>`, `${segs.length} ${plural(segs.length, 'категория', 'категории', 'категорий')}`);
 }
 // Цвет счета — по порядку в списке
-const accColor = a => COLORS[Math.max(0, D.accounts.indexOf(a)) % COLORS.length];
+// Цвет счета: выбранный вручную, иначе — по порядку в списке
+const accColor = a => (a && a.color) || COLORS[Math.max(0, D.accounts.indexOf(a)) % COLORS.length];
+const accIc = (a, size = 20) => `<div class="ic" style="color:${accColor(a)};background:${accColor(a)}22">${icon(ACC_ICON[a.type] || 'card', size)}</div>`;
 
 function viewAcc() {
   const date = ui.accDate, isToday = date >= todayStr();
@@ -873,7 +875,7 @@ function ask(msg) {
 /* ================= Окна выбора (вместо системных списков) ================= */
 // Поле-кнопка: показывает текущее значение, по нажатию открывает окно выбора
 const selField = (inner, onclick, disabled) => `<button type="button" class="selfield" ${disabled ? 'disabled' : `onclick="${onclick}"`}>${inner}${disabled ? '' : icon('down', 18)}</button>`;
-const accInner = id => { const a = accById(id); return a ? `<div class="ic">${icon(ACC_ICON[a.type] || 'card', 18)}</div><span class="grow">${esc(a.name)}<small>${CURS[a.cur || 'RUB'].s}</small></span>` : `<span class="grow" style="color:var(--hint)">Выберите счет</span>`; };
+const accInner = id => { const a = accById(id); return a ? `${accIc(a, 18)}<span class="grow">${esc(a.name)}<small>${CURS[a.cur || 'RUB'].s}</small></span>` : `<span class="grow" style="color:var(--hint)">Выберите счет</span>`; };
 const catInner = id => { const c = catById(id); return c ? `${catBadge(c)}<span class="grow">${esc(catPath(id))}</span>` : `${catBadge(null)}<span class="grow" style="color:var(--hint)">Без категории</span>`; };
 const curInner = c => `<span class="grow">${CURS[c].s} ${c}<small>${CURS[c].n}</small></span>`;
 
@@ -889,7 +891,7 @@ function pick(i) { const p = _pick; if (!p) return; const v = p.items[i].v; back
 function pickAcc(field) {
   const b = balances(), sel = draft[field];
   const list = D.accounts.filter(a => !a.archived || a.id === sel);
-  openPicker(field === 'to' ? 'Куда' : 'Счет', list.map(a => ({v:a.id, label:esc(a.name), sub:`${ACC_TYPE_ONE[a.type]} · ${signed(b[a.id] || 0, a.cur || 'RUB')}`, ic:`<div class="ic">${icon(ACC_ICON[a.type] || 'card', 20)}</div>`})), sel, v => df(field, v));
+  openPicker(field === 'to' ? 'Куда' : 'Счет', list.map(a => ({v:a.id, label:esc(a.name), sub:`${ACC_TYPE_ONE[a.type]} · ${signed(b[a.id] || 0, a.cur || 'RUB')}`, ic:accIc(a)})), sel, v => df(field, v));
 }
 function pickCur(target) {
   const cur = target === 'acc' ? draft.cur : draft.cur;
@@ -1107,14 +1109,15 @@ async function delTx() {
 /* ================= Счета ================= */
 function editAcc(id) {
   const a = id ? accById(id) : null;
-  draft = {id:a ? a.id : null, name:a ? a.name : '', type:a ? a.type : 'card', cur:a ? a.cur || 'RUB' : 'RUB', initial:a ? String(a.initial || 0) : '', archived:!!(a && a.archived)};
+  draft = {id:a ? a.id : null, name:a ? a.name : '', type:a ? a.type : 'card', cur:a ? a.cur || 'RUB' : 'RUB', initial:a ? String(a.initial || 0) : '', archived:!!(a && a.archived), color:a ? accColor(a) : COLORS[D.accounts.length % COLORS.length]};
   openSheet(accForm);
 }
 function accForm() {
   const d = draft, used = d.id && D.tx.some(t => t.acc === d.id || t.to === d.id);
   return sheetHead(d.id ? 'Счет' : 'Новый счет') + `
     <label>Название<input value="${esc(d.name)}" placeholder="Например: Зарплатная карта" oninput="App.d('name',this.value)"></label>
-    <label>Тип${selField(`<div class="ic">${icon(ACC_ICON[d.type], 18)}</div><span class="grow">${ACC_TYPE_ONE[d.type]}</span>`, 'App.pickAccType()')}</label>
+    <label>Тип${selField(`<div class="ic" style="color:${d.color};background:${d.color}22">${icon(ACC_ICON[d.type], 18)}</div><span class="grow">${ACC_TYPE_ONE[d.type]}</span>`, 'App.pickAccType()')}</label>
+    <label>Цвет<div class="sw">${COLORS.map(c => `<button style="background:${c}" class="${c === d.color ? 'on' : ''}" onclick="App.dr('color','${c}')"></button>`).join('')}</div></label>
     <label>Валюта счета${selField(curInner(d.cur), "App.pickCur('acc')", used)}</label>
     ${used ? '<div class="hint pad">Валюту нельзя поменять: по счету уже есть операции.</div>' : ''}
     <label>Начальный остаток, ${CURS[d.cur].s}<input inputmode="decimal" value="${esc(d.initial)}" placeholder="0" oninput="App.d('initial',this.value)"></label>
@@ -1128,7 +1131,7 @@ function saveAcc() {
   if (!d.name.trim()) return toast('Введите название');
   const init = d.initial === '' ? 0 : parseAmount(d.initial);
   if (isNaN(init)) return toast('Проверьте начальный остаток');
-  const a = {id:d.id || uid(), name:d.name.trim(), type:d.type, initial:r2(init)};
+  const a = {id:d.id || uid(), name:d.name.trim(), type:d.type, initial:r2(init), color:d.color};
   if (d.cur && d.cur !== 'RUB') a.cur = d.cur;
   if (d.archived) a.archived = true;
   const i = D.accounts.findIndex(x => x.id === a.id);
