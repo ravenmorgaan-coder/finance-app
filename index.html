@@ -11,8 +11,8 @@
   color-scheme:dark;
   /* Темно-фиолетово-сиреневая тема с градиентным фоном */
   --top:#241445;
-  --bg:#150d2b;
-  --card:rgba(44,30,82,.55);
+  --bg:#0d0619;
+  --card:rgba(50,34,92,.62);
   --card2:#2a1f4a;
   --sheet:#1d1438;
   --text:#efeaff;
@@ -27,10 +27,10 @@ body{background:transparent}
 /* Фон-градиент лежит на отдельном неподвижном слое: так он не «едет» при прокрутке на телефоне */
 body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
   background:
-    radial-gradient(120% 60% at 85% -10%, rgba(185,140,255,.35) 0%, rgba(185,140,255,0) 60%),
-    radial-gradient(90% 50% at -10% 45%, rgba(120,70,220,.28) 0%, rgba(120,70,220,0) 60%),
-    radial-gradient(100% 60% at 110% 105%, rgba(220,120,255,.18) 0%, rgba(220,120,255,0) 60%),
-    linear-gradient(170deg, #2a1650 0%, #1b0f38 40%, #120a26 75%, #0d071c 100%)}
+    radial-gradient(120% 55% at 85% -10%, rgba(170,120,255,.20) 0%, rgba(170,120,255,0) 60%),
+    radial-gradient(90% 50% at -10% 45%, rgba(110,60,210,.14) 0%, rgba(110,60,210,0) 60%),
+    radial-gradient(100% 60% at 110% 105%, rgba(200,110,255,.10) 0%, rgba(200,110,255,0) 60%),
+    linear-gradient(170deg, #1a0d33 0%, #110824 40%, #0b0518 75%, #070310 100%)}
 .card,.selfield,.datefield,.chip,.seg,.mnav button,.search,label input,label textarea{-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
 html,body{margin:0;color:var(--text);font:15px/1.35 "Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
 body.lock{overflow:hidden}
@@ -1247,7 +1247,7 @@ async function init() {
   if (IN_TG) {
     try { TG.ready(); TG.expand(); } catch (e) {}
     try { TG.BackButton.onClick(back); } catch (e) {}
-    try { TG.setHeaderColor('#2a1650'); TG.setBackgroundColor('#150d2b'); TG.setBottomBarColor && TG.setBottomBarColor('#160d2c'); } catch (e) {}
+    try { TG.setHeaderColor('#1a0d33'); TG.setBackgroundColor('#0d0619'); TG.setBottomBarColor && TG.setBottomBarColor('#160d2c'); } catch (e) {}
   }
   document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { ui.tab = b.dataset.tab; render(); window.scrollTo(0, 0); });
   try {
