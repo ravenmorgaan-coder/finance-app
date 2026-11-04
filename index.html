@@ -34,7 +34,6 @@ body.lock{overflow:hidden}
 .summary b{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .search,label input,label select,label textarea{width:100%;font:inherit;font-size:16px;color:var(--text);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;outline:none}
 .search,label input,label textarea{-webkit-appearance:none;appearance:none}
-input[type=date]{min-height:44px}
 label textarea{resize:vertical}
 .searchbox{position:relative;margin-bottom:10px}
 .searchbox svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--hint);pointer-events:none}
@@ -66,7 +65,12 @@ label textarea{resize:vertical}
 .amtrow label:first-child{flex:1}
 .amtrow label:last-child{width:120px;flex:none}
 .datebar{display:flex;gap:8px;align-items:center;margin-bottom:12px}
-.datebar input{flex:1;font:inherit;font-size:16px;color:var(--text);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px;min-height:42px}
+.datebar .datefield{flex:1;margin-top:0}
+/* Поле даты: показываем ДД.ММ.ГГГГ сами, а прозрачный системный input сверху открывает календарь */
+.datefield{position:relative;display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:44px;margin-top:4px;padding:10px 12px;font-size:16px;color:var(--text);background:var(--card);border:1px solid var(--line);border-radius:10px;cursor:pointer}
+.panel .datefield{background:var(--card2)}
+.datefield .i{color:var(--hint);flex:none}
+.datefield input{position:absolute!important;inset:0;width:100%!important;height:100%;opacity:0;margin:0!important;padding:0!important;border:0!important;cursor:pointer;-webkit-appearance:none;appearance:none}
 .datebar .mini{padding:10px 12px;background:var(--card)}
 .spark{display:block;width:100%;height:120px}
 .subrow{padding-left:58px}
@@ -163,6 +167,9 @@ const monthLabel = m => MONTHS[+m.slice(5,7)-1] + ' ' + m.slice(0,4);
 const shiftMonth = (m, k) => { let y = +m.slice(0,4), mo = +m.slice(5,7) - 1 + k; y += Math.floor(mo/12); mo = ((mo % 12) + 12) % 12; return `${y}-${pad(mo+1)}`; };
 const dayLabel = d => { const dt = new Date(+d.slice(0,4), +d.slice(5,7)-1, +d.slice(8,10)); const y = dt.getFullYear() !== new Date().getFullYear() ? ' ' + dt.getFullYear() : ''; return `${dt.getDate()} ${MONTHS_GEN[dt.getMonth()]}${y}, ${WD[dt.getDay()]}`; };
 const shortDate = d => `${d.slice(8,10)}.${d.slice(5,7)}.${d.slice(2,4)}`;
+const ruDate = d => d ? `${d.slice(8,10)}.${d.slice(5,7)}.${d.slice(0,4)}` : 'Выберите дату';
+// Поле даты, которое всегда показывает ДД.ММ.ГГГГ, независимо от языка телефона
+const dateField = (val, onchange) => `<span class="datefield"><span>${ruDate(val)}</span>${icon('cal', 18)}<input type="date" value="${esc(val)}" onclick="try{this.showPicker()}catch(e){}" onchange="${onchange}"></span>`;
 const parseAmount = v => { const n = parseFloat(String(v).replace(/[\s ]/g,'').replace(',', '.')); return isFinite(n) ? n : NaN; };
 
 const TYPES = {expense:'Расход', income:'Доход', transfer:'Перевод', refund:'Возврат'};
@@ -186,6 +193,7 @@ const ICONS = {
   deposit:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/>',
   cash:'<rect x="3" y="6.5" width="18" height="11" rx="2.5"/><circle cx="12" cy="12" r="2.5"/>',
   none:'<circle cx="12" cy="12" r="7" stroke-dasharray="3 3"/>',
+  cal:'<rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M9 3v4M15 3v4"/>',
 };
 const icon = (name, size = 22) => `<svg class="i" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ICONS.none}</svg>`;
 const ACC_ICON = {card:'card', account:'account', deposit:'deposit', cash:'cash'};
@@ -601,7 +609,7 @@ function viewAcc() {
     const c = a.cur || 'RUB', r = Rates.get(date, c);
     return `<div class="row" onclick="App.accView('${a.id}')"><div class="ic">${icon(ACC_ICON[a.type] || 'card', 20)}</div><div class="mid"><div class="tt">${esc(a.name)}</div>${c !== 'RUB' ? `<div class="sub">${CURS[c].n}</div>` : ''}</div><div class="amt ${b[a.id] < 0 ? 'neg' : ''}">${signed(b[a.id], c)}${c !== 'RUB' && r ? `<div class="rub">≈ ${signed(b[a.id] * r)}</div>` : ''}</div></div>`;
   };
-  let h = `<div class="datebar"><span class="hint">Остатки на</span><input type="date" value="${date}" onchange="App.accDate(this.value)">${!isToday ? `<button class="mini" onclick="App.accDate('')">Сегодня</button>` : ''}</div>
+  let h = `<div class="datebar"><span class="hint">Остатки на</span>${dateField(date, 'App.accDate(this.value)')}${!isToday ? `<button class="mini" onclick="App.accDate('')">Сегодня</button>` : ''}</div>
     <div class="card big"><span class="hint">${isToday ? 'Всего на счетах сейчас' : 'Всего на конец дня ' + dayLabel(date)}</span><b>${missing ? '…' : signed(total)}</b>${hasFx ? `<div class="hint">Валюта пересчитана в рубли по курсу ЦБ${isToday ? '' : ' на эту дату'}</div>` : ''}</div>`;
   for (const [type, label] of Object.entries(ACC_TYPES)) {
     const list = act.filter(a => a.type === type);
@@ -637,7 +645,7 @@ function accView(id) {
     const vals = days.map(d => balanceOn(hist, a.initial, d));
     const r = Rates.get(date, c);
     let h = sheetHead(esc(a.name)) +
-      `<div class="datebar"><span class="hint">Остаток на</span><input type="date" value="${date}" onchange="App.histDate(this.value)">${date < todayStr() ? `<button class="mini" onclick="App.histDate('')">Сегодня</button>` : ''}</div>
+      `<div class="datebar"><span class="hint">Остаток на</span>${dateField(date, 'App.histDate(this.value)')}${date < todayStr() ? `<button class="mini" onclick="App.histDate('')">Сегодня</button>` : ''}</div>
       <div class="card big"><span class="hint">На конец дня ${dayLabel(date)}</span><b>${signed(bal, c)}</b>${c !== 'RUB' && r ? `<div class="hint">≈ ${signed(bal * r)} по курсу ЦБ</div>` : ''}</div>
       <div class="card pad"><div class="hint">Остаток за 60 дней</div>${spark(vals, days)}</div>
       <button class="btn sec" onclick="App.editAcc('${id}')">Изменить счёт</button>`;
@@ -777,7 +785,7 @@ function txForm() {
       ? `<div class="hint pad">Покупка: ${money(o.amount, '', curOf(o))}${refundedSum(o.id, d.id) ? ` · уже возвращено ${money(refundedSum(o.id, d.id), '', curOf(o))}` : ''}. Укажите сумму, которую вам фактически вернули, — разница останется расходом.</div>`
       : `<div class="hint pad">Привяжите покупку, чтобы возврат уменьшил расход в той же категории и в месяце покупки. Сумма возврата может быть меньше суммы покупки.</div>`;
   }
-  h += `<label>Дата<input type="date" value="${esc(d.date)}" onchange="App.df('date',this.value)"></label>`;
+  h += `<label>Дата${dateField(d.date, "App.df('date',this.value)")}</label>`;
   if (isT) {
     h += `<label>Откуда<select onchange="App.df('acc',this.value)">${accOptions(d.acc)}</select></label>
       <label>Куда<select onchange="App.df('to',this.value)"><option value="">— выберите счёт —</option>${accOptions(d.to)}</select></label>`;
