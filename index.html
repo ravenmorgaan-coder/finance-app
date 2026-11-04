@@ -316,7 +316,9 @@ const COLORS = ['#8b93ff','#f2a65a','#ff6b8a','#4fd18b','#c08bff','#4cc9d6','#ff
    Вне Telegram (тест в браузере): localStorage.
    Значение в CloudStorage — до 4096 символов, поэтому данные режутся на куски. */
 const Store = (() => {
-  const CH = 3800;
+  /* Лимит Telegram — 4096 БАЙТ на одно значение (русская буква = 2 байта, эмодзи = 4).
+     Режем данные на куски не длиннее MAXB байт, не разрывая символы. */
+  const MAXB = 3800;
   const cloud = !!(IN_TG && TG.CloudStorage && TG.isVersionAtLeast && TG.isVersionAtLeast('6.9'));
   const call = (method, ...args) => new Promise((res, rej) => TG.CloudStorage[method](...args, (err, v) => err ? rej(err) : res(v)));
   async function getMany(keys) {
@@ -326,17 +328,36 @@ const Store = (() => {
     return out;
   }
   async function set(k, v) { if (!cloud) { localStorage.setItem('fin_' + k, v); return; } await call('setItem', k, v); }
-  async function del(keys) { if (!keys.length) return; if (!cloud) { keys.forEach(k => localStorage.removeItem('fin_' + k)); return; } await call('removeItems', keys); }
-  // meta — оглавление: какие блоки есть и из скольких кусков каждый
+  async function del(keys) {
+    if (!keys.length) return;
+    if (!cloud) { keys.forEach(k => localStorage.removeItem('fin_' + k)); return; }
+    for (let i = 0; i < keys.length; i += 20) await call('removeItems', keys.slice(i, i + 20));
+  }
+  const bytes = cp => cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4;
+  function split(str) {
+    const parts = []; let cur = '', size = 0;
+    for (const ch of str) {           // for..of идет по целым символам, эмодзи не разрываются
+      const b = bytes(ch.codePointAt(0));
+      if (size + b > MAXB) { parts.push(cur); cur = ''; size = 0; }
+      cur += ch; size += b;
+    }
+    if (cur) parts.push(cur);
+    return parts;
+  }
+  /* meta — оглавление. Для каждого блока: число кусков и «поколение» записи ("3.k2x9a").
+     Новая версия пишется в новые ключи, и только потом оглавление переключается на нее.
+     Если запись оборвется на середине, старая версия останется целой. */
+  const entry = v => typeof v === 'number' ? {n:v, g:''} : (([n, g]) => ({n:+n, g}))(String(v).split('.'));
+  const keyOf = (name, e, i) => e.g ? `${name}__${e.g}_${i}` : `${name}__${i}`;
+  const keysOf = (name, e) => Array.from({length:e.n}, (_, i) => keyOf(name, e, i));
   async function readMeta() { const m = (await getMany(['meta'])).meta; return m ? JSON.parse(m) : null; }
   async function readBlobs(meta, names) {
     const keys = [];
-    for (const name of names) for (let i = 0; i < (meta.blobs[name] || 0); i++) keys.push(name + '__' + i);
+    for (const name of names) if (meta.blobs[name] != null) keys.push(...keysOf(name, entry(meta.blobs[name])));
     const vals = await getMany(keys), res = {}, bad = [];
     for (const name of names) {
-      const n = meta.blobs[name] || 0;
-      if (!n) { res[name] = null; continue; }
-      let str = ''; for (let i = 0; i < n; i++) str += vals[name + '__' + i] || '';
+      if (meta.blobs[name] == null) { res[name] = null; continue; }
+      const str = keysOf(name, entry(meta.blobs[name])).map(k => vals[k] || '').join('');
       try { res[name] = JSON.parse(str); } catch (e) { console.error('Поврежден блок', name, e); res[name] = null; bad.push(name); }
     }
     return {res, bad};
@@ -361,20 +382,24 @@ const Store = (() => {
       const meta0 = await readMeta() || {v:1, blobs:{}};
       const {res, bad} = await readBlobs(meta0, [name]);
       const data = fn(bad.length && fallback ? fallback() : res[name]);
-      const str = data == null ? '' : JSON.stringify(data);
-      const parts = []; for (let i = 0; i < str.length; i += CH) parts.push(str.slice(i, i + CH));
-      for (let i = 0; i < parts.length; i++) await set(name + '__' + i, parts[i]);
+      const parts = data == null ? [] : split(JSON.stringify(data));
+      const e = {n:parts.length, g:(Date.now() % 1e9).toString(36) + Math.random().toString(36).slice(2, 4)};
+      for (let i = 0; i < parts.length; i++) await set(keyOf(name, e, i), parts[i]);
       const meta = await readMeta() || {v:1, blobs:{}};  // еще раз свежее оглавление — меняем только свою строку
-      const old = Math.max(meta.blobs[name] || 0, meta0.blobs[name] || 0);
-      if (parts.length) meta.blobs[name] = parts.length; else delete meta.blobs[name];
-      await set('meta', JSON.stringify(meta));
-      const extra = []; for (let i = parts.length; i < old; i++) extra.push(name + '__' + i);
-      await del(extra);
+      const olds = [meta.blobs[name], meta0.blobs[name]].filter(v => v != null).map(entry);
+      if (parts.length) meta.blobs[name] = `${e.n}.${e.g}`; else delete meta.blobs[name];
+      await set('meta', JSON.stringify(meta));          // ← момент «переключения» на новую версию
+      const stale = new Set(); olds.forEach(o => keysOf(name, o).forEach(k => stale.add(k)));
+      try { await del([...stale]); } catch (err) { console.warn('Не удалось убрать старые куски', err); }
       return data;
-    }).catch(e => { console.error(e); toast('Не удалось сохранить: ' + e); throw e; });
+    }).catch(e => {
+      console.error(e);
+      toast(String(e).includes('TOO_LONG') ? 'Не удалось сохранить: слишком большой блок данных' : 'Не удалось сохранить: ' + e);
+      throw e;
+    });
   }
   const save = (name, data) => update(name, () => data);
-  return {loadAll, update, save, cloud};
+  return {loadAll, update, save, cloud, _split:split};
 })();
 
 /* ================= Курсы валют (ЦБ РФ) =================
