@@ -49,6 +49,31 @@ label textarea{resize:vertical}
 .chips::-webkit-scrollbar{display:none}
 .chip{border:0;background:var(--card);color:var(--text);padding:7px 12px;border-radius:999px;font:inherit;font-size:14px;white-space:nowrap;cursor:pointer}
 .chip.on{background:var(--accent);color:var(--accent-text)}
+/* Поле-кнопка вместо системного списка */
+.selfield{display:flex;align-items:center;gap:10px;width:100%;margin-top:4px;min-height:46px;padding:7px 12px;font:inherit;font-size:16px;color:var(--text);background:var(--card);border:1px solid var(--line);border-radius:10px;text-align:left;cursor:pointer}
+.selfield:disabled{opacity:.55;cursor:default}
+.panel .selfield{background:var(--card2)}
+.selfield .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.selfield .grow small{color:var(--hint);font-size:13px;margin-left:6px}
+.selfield>.i:last-child{color:var(--hint);flex:none}
+.selfield .ic{width:30px;height:30px;border-radius:9px}
+.selfield .ic .i{width:17px;height:17px}
+.amtrow .selfield{min-height:56px}
+/* Окно выбора */
+.prow .chk{color:var(--accent);flex:none}
+.prow.on .tt{color:var(--accent)}
+.subchips{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 12px 58px;border-bottom:1px solid var(--line)}
+.subchips:last-child{border-bottom:0}
+.subchips .chip{display:inline-flex;align-items:center;gap:6px;background:var(--card);font-size:13.5px;padding:6px 11px}
+.subchips .chip .i{width:15px;height:15px;opacity:.8}
+.subchips .chip.on{background:var(--accent);color:var(--accent-text)}
+.hasSubs{border-bottom:0!important}
+/* Библиотека иконок */
+.igrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(46px,1fr));gap:8px;margin-top:6px}
+.igrid button{aspect-ratio:1;border:0;border-radius:12px;background:var(--card2);color:var(--hint);display:grid;place-items:center;cursor:pointer;font:inherit;font-size:11px}
+.igrid button.on{color:inherit;background:#ffffff10;outline:2px solid currentColor;outline-offset:-2px}
+.subic{width:26px!important;height:26px!important;border-radius:8px!important}
+.subic .i{width:15px;height:15px}
 .day{color:var(--hint);font-size:13px;margin:14px 4px 6px}
 .row{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);cursor:pointer}
 .row:last-child{border-bottom:0}
@@ -194,8 +219,66 @@ const ICONS = {
   cash:'<rect x="3" y="6.5" width="18" height="11" rx="2.5"/><circle cx="12" cy="12" r="2.5"/>',
   none:'<circle cx="12" cy="12" r="7" stroke-dasharray="3 3"/>',
   cal:'<rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M9 3v4M15 3v4"/>',
+  down:'<path d="M7 10l5 5 5-5"/>',
+  check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',
 };
-const icon = (name, size = 22) => `<svg class="i" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ICONS.none}</svg>`;
+/* Библиотека иконок для категорий */
+const CAT_ICONS = {
+  cart:'<path d="M3 4h2l2.2 10.2a1.5 1.5 0 001.5 1.2h8.6a1.5 1.5 0 001.4-1.1L20.5 8H6.2"/><circle cx="9.5" cy="19.5" r="1.2"/><circle cx="17" cy="19.5" r="1.2"/>',
+  apple:'<path d="M12 7.5c-2-1.5-6.5-1-6.5 4S8.5 20 10 20c1 0 1.3-.5 2-.5s1 .5 2 .5c1.5 0 4.5-3.5 4.5-8.5s-4.5-5.5-6.5-4z"/><path d="M12 7.5c0-2 1-3.5 3-4.5"/>',
+  fork:'<path d="M7 3v8M5 3v5a2 2 0 004 0V3M7 11v10"/><path d="M17 21V3c-2 1.5-3 4-3 7v3h3"/>',
+  coffee:'<path d="M5 9h11v5a5 5 0 01-5 5h-1a5 5 0 01-5-5V9z"/><path d="M16 10h1.5a2.5 2.5 0 010 5H16"/><path d="M9 3c0 1.5 1 1.5 1 3M13 3c0 1.5 1 1.5 1 3"/>',
+  wine:'<path d="M8 3h8l-.5 5a3.5 3.5 0 01-7 0L8 3zM12 11.5V20M8.5 20.5h7"/>',
+  box:'<path d="M4 8l8-4 8 4v8l-8 4-8-4V8z"/><path d="M4 8l8 4 8-4M12 12v8"/>',
+  bus:'<rect x="5" y="3" width="14" height="15" rx="3"/><path d="M5 11h14M8 21v-3M16 21v-3"/><circle cx="8.5" cy="14.5" r=".8"/><circle cx="15.5" cy="14.5" r=".8"/>',
+  car:'<path d="M5 12l1.8-4.6A2 2 0 018.7 6h6.6a2 2 0 011.9 1.4L19 12"/><rect x="3" y="12" width="18" height="5" rx="2"/><path d="M6 17v2M18 17v2"/>',
+  train:'<rect x="6" y="3" width="12" height="13" rx="3"/><path d="M6 10h12M9 16l-2 5M15 16l2 5"/>',
+  plane:'<path d="M10.5 3.5c0-.8.7-1.5 1.5-1.5s1.5.7 1.5 1.5V9l7 4v2l-7-2v5l2 1.5V21L12 20l-3.5 1v-1.5l2-1.5v-5l-7 2v-2l7-4z"/>',
+  fuel:'<rect x="4" y="4" width="10" height="16" rx="2"/><path d="M4 10h10M14 8l3 2v7a1.5 1.5 0 003 0V9l-2-3"/>',
+  home:'<path d="M4 11l8-7 8 7"/><path d="M6 10v10h12V10"/><path d="M10 20v-5h4v5"/>',
+  key:'<circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 7l2 2M14 9l2 2"/>',
+  bulb:'<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 00-3.5 10.9V16h7v-2.1A6 6 0 0012 3z"/>',
+  wifi:'<path d="M4 9a12 12 0 0116 0M7 12.5a7.5 7.5 0 0110 0M10 16a3 3 0 014 0"/><circle cx="12" cy="19" r=".8"/>',
+  phone:'<rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M11 18h2"/>',
+  heart:'<path d="M12 20s-7-4.3-7-10a4 4 0 017-2.6A4 4 0 0119 10c0 5.7-7 10-7 10z"/>',
+  pill:'<path d="M10.5 6.5a3.5 3.5 0 015 5l-4 4a3.5 3.5 0 01-5-5z"/><path d="M8.5 8.5l5 5"/>',
+  medic:'<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8v8M8 12h8"/>',
+  sport:'<path d="M6 8v8M3.5 10v4M18 8v8M20.5 10v4M6 12h12"/>',
+  shirt:'<path d="M8 4l-4 3 2 3 2-1v11h8V9l2 1 2-3-4-3c-.5 1.2-2 2-4 2s-3.5-.8-4-2z"/>',
+  sparkle:'<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M18 16l.7 1.8 1.8.7-1.8.7L18 21l-.7-1.8-1.8-.7 1.8-.7z"/>',
+  ticket:'<path d="M4 7h16v3a2 2 0 000 4v3H4v-3a2 2 0 000-4V7z"/><path d="M14 7v10" stroke-dasharray="2 2"/>',
+  play:'<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9.5v5l4.5-2.5z"/>',
+  music:'<path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/>',
+  game:'<rect x="3" y="7" width="18" height="11" rx="5"/><path d="M8 10.5v4M6 12.5h4"/><circle cx="15.5" cy="11.5" r=".8"/><circle cx="17.5" cy="13.5" r=".8"/>',
+  palette:'<path d="M12 20a8 8 0 118-8c0 2-1.5 3-3 3h-2a2 2 0 00-1.5 3.3c.4.5.2 1.7-1.5 1.7z"/><circle cx="8" cy="11" r="1"/><circle cx="11" cy="7.5" r="1"/><circle cx="15.5" cy="8.5" r="1"/>',
+  suitcase:'<rect x="6" y="6" width="12" height="13" rx="2.5"/><path d="M10 6V4h4v2M10 10v5M14 10v5M8.5 21v-2M15.5 21v-2"/>',
+  bed:'<path d="M3 18V6M3 14h18v4M21 14v-2a3 3 0 00-3-3h-7v5"/><circle cx="7" cy="11" r="1.5"/>',
+  pin:'<path d="M12 21s-6-5.5-6-11a6 6 0 0112 0c0 5.5-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/>',
+  gift:'<rect x="4" y="9" width="16" height="11" rx="1.5"/><path d="M3 9h18M12 9v11M12 9c-1.5-3-5-3.5-5-1.5S10 9 12 9zM12 9c1.5-3 5-3.5 5-1.5S14 9 12 9z"/>',
+  book:'<path d="M5 4.5A1.5 1.5 0 016.5 3H19v15H6.5A1.5 1.5 0 005 19.5z"/><path d="M5 19.5A1.5 1.5 0 006.5 21H19v-3"/>',
+  paw:'<circle cx="7" cy="10" r="1.6"/><circle cx="10.5" cy="6.5" r="1.6"/><circle cx="14.5" cy="6.5" r="1.6"/><circle cx="18" cy="10" r="1.6"/><path d="M12 12c-3 0-5 3-5 5.5 0 1.5 1.5 2 2.5 1.5s1.5-.8 2.5-.8 1.5.3 2.5.8 2.5 0 2.5-1.5C17 15 15 12 12 12z"/>',
+  baby:'<circle cx="12" cy="8" r="4"/><path d="M6 21c0-3.5 2.7-6 6-6s6 2.5 6 6"/><path d="M10.5 8h.01M13.5 8h.01"/>',
+  tools:'<path d="M14.5 4.5a4 4 0 00-5 5L4 15v5h5l5.5-5.5a4 4 0 005-5l-2.5 2.5-3-3z"/>',
+  shield:'<path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/>',
+  bank:'<path d="M3 9l9-5 9 5M5 10v8M10 10v8M14 10v8M19 10v8M3 20h18"/>',
+  briefcase:'<rect x="3" y="7" width="18" height="12" rx="2.5"/><path d="M9 7V5.5A1.5 1.5 0 0110.5 4h3A1.5 1.5 0 0115 5.5V7M3 12.5h18"/>',
+  laptop:'<rect x="5" y="5" width="14" height="10" rx="1.5"/><path d="M3 19h18"/>',
+  percent:'<path d="M19 5L5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/>',
+  coins:'<ellipse cx="12" cy="7" rx="7" ry="3"/><path d="M5 7v5c0 1.7 3.1 3 7 3s7-1.3 7-3V7M5 12v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5"/>',
+  star:'<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>',
+  leaf:'<path d="M5 19c0-8 5-14 15-14 0 10-6 15-14 15"/><path d="M5 19l8-8"/>',
+  dots:'<circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/>',
+};
+const icon = (name, size = 22) => `<svg class="i" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || CAT_ICONS[name] || ICONS.none}</svg>`;
+// Иконки по умолчанию для стандартных категорий (по названию)
+const NAME_ICON = {
+  'Продукты':'cart','Супермаркет':'cart','Рынок':'apple','Кафе и рестораны':'fork','Рестораны':'fork','Кофе':'coffee','Доставка еды':'box',
+  'Транспорт':'bus','Общественный транспорт':'bus','Такси':'car','Поезда':'train','Авиабилеты':'plane','Топливо':'fuel',
+  'Жильё':'home','Аренда':'key','Коммунальные услуги':'bulb','Интернет и связь':'wifi','Здоровье':'heart','Аптека':'pill','Врачи':'medic','Спорт':'sport',
+  'Одежда и обувь':'shirt','Красота':'sparkle','Развлечения':'ticket','Кино и театр':'ticket','Подписки':'play','Хобби':'palette',
+  'Путешествия':'suitcase','Отели':'bed','Экскурсии':'pin','Подарки':'gift','Образование':'book','Прочее':'dots',
+  'Зарплата':'briefcase','Аванс':'coins','Основная часть':'briefcase','Премия':'star','Подработка':'laptop','Проценты и кэшбэк':'percent','Проценты по вкладу':'percent','Кэшбэк':'coins',
+};
 const ACC_ICON = {card:'card', account:'account', deposit:'deposit', cash:'cash'};
 const COLORS = ['#8b93ff','#f2a65a','#ff6b8a','#4fd18b','#c08bff','#4cc9d6','#ffd166','#ff8f5a','#6fa8ff','#b5a48b','#e07bd6','#7ed957'];
 
@@ -333,8 +416,8 @@ function seed() {
   const cats = [];
   let k = 0;
   const add = (type, list) => list.forEach(([, name, subs]) => {
-    const id = uid(); cats.push({id, type, name, color:COLORS[k++ % COLORS.length]});
-    subs.forEach(s => cats.push({id:uid(), type, name:s, parent:id}));
+    const id = uid(); cats.push({id, type, name, color:COLORS[k++ % COLORS.length], icon:NAME_ICON[name]});
+    subs.forEach(s => cats.push({id:uid(), type, name:s, parent:id, icon:NAME_ICON[s]}));
   });
   add('expense', E); add('income', I);
   D = {accounts:[{id:uid(), name:'Основная карта', type:'card', initial:0}], cats, tx:[]};
@@ -348,10 +431,14 @@ const topOf = c => c && c.parent ? (catById(c.parent) || c) : c;
 const catPath = id => { const c = catById(id); if (!c) return ''; const p = c.parent && catById(c.parent); return p ? `${p.name} › ${c.name}` : c.name; };
 const hashColor = s => { let h = 0; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) | 0; return COLORS[Math.abs(h) % COLORS.length]; };
 const catColor = c => c ? (c.color || hashColor(c.id)) : '#7b818e';
-// Абстрактный значок категории: цветная плашка с первой буквой
-const catBadge = c => c
-  ? `<div class="ic cat" style="background:${catColor(c)}22;color:${catColor(c)}">${esc(c.name.trim().charAt(0).toUpperCase())}</div>`
-  : `<div class="ic">${icon('none', 20)}</div>`;
+// Иконка категории: своя → стандартная по названию → иконка родителя
+const catIcon = c => { if (!c) return null; const own = c.icon !== undefined ? c.icon : NAME_ICON[c.name]; if (own) return own; const p = c.parent && catById(c.parent); return p ? (p.icon || NAME_ICON[p.name] || null) : null; };
+// Значок категории: цветная плашка (цвет основной категории) с иконкой, а если иконки нет — с первой буквой
+const catBadge = (c, cls = '') => {
+  if (!c) return `<div class="ic ${cls}">${icon('none', 20)}</div>`;
+  const col = catColor(topOf(c)), ic = catIcon(c);
+  return `<div class="ic cat ${cls}" style="background:${col}22;color:${col}">${ic ? icon(ic, 20) : esc(c.name.trim().charAt(0).toUpperCase())}</div>`;
+};
 const parents = type => D.cats.filter(c => c.type === type && !c.parent);
 const childrenOf = id => D.cats.filter(c => c.parent === id);
 const accCur = id => (accById(id) || {}).cur || 'RUB';
@@ -519,7 +606,7 @@ function txRow(t) {
     sub = `${esc(accName(t.acc))} → ${esc(accName(t.to))}`; amt = money(t.amount, '', cur);
     if (t.amount2 != null && accCur(t.to) !== cur) small = '→ ' + money(t.amount2, '', accCur(t.to));
   } else {
-    ico = t.type === 'refund' ? `<div class="ic" style="color:var(--orange)">${icon('refund', 20)}</div>` : catBadge(topOf(c));
+    ico = t.type === 'refund' ? `<div class="ic" style="color:var(--orange)">${icon('refund', 20)}</div>` : catBadge(c);
     title = t.title || (c ? c.name : TYPES[t.type]);
     sub = `${esc(catPath(t.cat) || 'Без категории')} · ${esc(accName(t.acc))}`;
     const sg = t.type === 'expense' ? '−' : '+';
@@ -666,7 +753,7 @@ function viewCats() {
   if (!ps.length) h += '<div class="empty">Категорий пока нет</div>';
   ps.forEach(p => {
     h += `<div class="row" onclick="App.editCat('${p.id}')">${catBadge(p)}<div class="mid"><div class="tt">${esc(p.name)}</div></div><button class="mini" onclick="event.stopPropagation();App.editCat(null,'${p.id}')">+ подкатегория</button></div>`;
-    childrenOf(p.id).forEach(c => { h += `<div class="row subrow" onclick="App.editCat('${c.id}')"><div class="mid"><div class="tt">${esc(c.name)}</div></div></div>`; });
+    childrenOf(p.id).forEach(c => { h += `<div class="row subrow" style="padding-left:24px" onclick="App.editCat('${c.id}')"><div style="width:34px"></div>${catBadge(c, 'subic')}<div class="mid"><div class="tt">${esc(c.name)}</div></div></div>`; });
   });
   return h + `</div><button class="btn" onclick="App.editCat()">+ Новая категория</button>`;
 }
@@ -692,17 +779,63 @@ function ask(msg) {
   });
 }
 
-/* ================= Операция ================= */
-function accOptions(sel) { return D.accounts.filter(a => !a.archived || a.id === sel).map(a => `<option value="${a.id}" ${a.id === sel ? 'selected' : ''}>${esc(a.name)}</option>`).join(''); }
-function catOptions(type, sel) {
-  let h = `<option value="">— Без категории —</option>`;
-  parents(type).forEach(p => {
-    h += `<optgroup label="${esc(p.name)}"><option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${esc(p.name)} — общее</option>`;
-    childrenOf(p.id).forEach(c => h += `<option value="${c.id}" ${c.id === sel ? 'selected' : ''}>${esc(c.name)}</option>`);
-    h += '</optgroup>';
-  });
-  return h;
+/* ================= Окна выбора (вместо системных списков) ================= */
+// Поле-кнопка: показывает текущее значение, по нажатию открывает окно выбора
+const selField = (inner, onclick, disabled) => `<button type="button" class="selfield" ${disabled ? 'disabled' : `onclick="${onclick}"`}>${inner}${disabled ? '' : icon('down', 18)}</button>`;
+const accInner = id => { const a = accById(id); return a ? `<div class="ic">${icon(ACC_ICON[a.type] || 'card', 18)}</div><span class="grow">${esc(a.name)}<small>${CURS[a.cur || 'RUB'].s}</small></span>` : `<span class="grow" style="color:var(--hint)">Выберите счёт</span>`; };
+const catInner = id => { const c = catById(id); return c ? `${catBadge(c)}<span class="grow">${esc(catPath(id))}</span>` : `${catBadge(null)}<span class="grow" style="color:var(--hint)">Без категории</span>`; };
+const curInner = c => `<span class="grow">${CURS[c].s} ${c}<small>${CURS[c].n}</small></span>`;
+
+let _pick = null;
+// Универсальный список: items = [{v, label, sub, ic}]
+function openPicker(title, items, cur, cb) {
+  _pick = {items, cb};
+  openSheet(() => sheetHead(title) + `<div class="card">${items.map((it, i) =>
+    `<div class="row prow ${it.v === cur ? 'on' : ''}" onclick="App.pick(${i})">${it.ic || ''}<div class="mid"><div class="tt">${it.label}</div>${it.sub ? `<div class="sub">${it.sub}</div>` : ''}</div>${it.v === cur ? `<span class="chk">${icon('check', 20)}</span>` : ''}</div>`).join('')}</div>`);
 }
+function pick(i) { const p = _pick; if (!p) return; const v = p.items[i].v; back(); p.cb(v); }
+
+function pickAcc(field) {
+  const b = balances(), sel = draft[field];
+  const list = D.accounts.filter(a => !a.archived || a.id === sel);
+  openPicker(field === 'to' ? 'Куда' : 'Счёт', list.map(a => ({v:a.id, label:esc(a.name), sub:`${ACC_TYPE_ONE[a.type]} · ${signed(b[a.id] || 0, a.cur || 'RUB')}`, ic:`<div class="ic">${icon(ACC_ICON[a.type] || 'card', 20)}</div>`})), sel, v => df(field, v));
+}
+function pickCur(target) {
+  const cur = target === 'acc' ? draft.cur : draft.cur;
+  openPicker('Валюта', Object.entries(CURS).map(([k, c]) => ({v:k, label:`${c.s} ${k}`, sub:c.n, ic:`<div class="ic" style="font-weight:600;font-size:14px;color:var(--text)">${c.s}</div>`})), cur,
+    v => { if (target === 'acc') { draft.cur = v; showSheet(); } else df('cur', v); });
+}
+function pickAccType() {
+  openPicker('Тип счёта', Object.entries(ACC_TYPE_ONE).map(([k, l]) => ({v:k, label:l, ic:`<div class="ic">${icon(ACC_ICON[k], 20)}</div>`})), draft.type, v => { draft.type = v; showSheet(); });
+}
+function pickRefTx() {
+  const exps = D.tx.filter(t => t.type === 'expense').sort(sortTx).slice(0, 300);
+  openPicker('Какую покупку вернули', [{v:'', label:'Не привязывать', ic:`<div class="ic">${icon('none', 20)}</div>`}].concat(exps.map(t => ({
+    v:t.id, label:esc(t.title || catPath(t.cat) || 'Без названия'), sub:`${shortDate(t.date)} · ${money(t.amount, '', curOf(t))}`, ic:catBadge(catById(t.cat))}))), draft.ref, v => pickRef(v));
+}
+function pickParent() {
+  const d = draft;
+  openPicker('Входит в категорию', [{v:'', label:'Нет — это основная категория', ic:`<div class="ic">${icon('none', 20)}</div>`}].concat(
+    parents(d.type).filter(p => p.id !== d.id).map(p => ({v:p.id, label:esc(p.name), ic:catBadge(p)}))), d.parent, v => { draft.parent = v; showSheet(); });
+}
+// Выбор категории: основные категории списком, подкатегории — «таблетками» под ними
+function pickCat() {
+  const type = draft.type === 'income' ? 'income' : 'expense';
+  openSheet(() => {
+    const sel = draft.cat;
+    let h = sheetHead('Категория') + '<div class="card">' +
+      `<div class="row prow ${!sel ? 'on' : ''}" onclick="App.setCat('')">${catBadge(null)}<div class="mid"><div class="tt">Без категории</div></div>${!sel ? `<span class="chk">${icon('check', 20)}</span>` : ''}</div>`;
+    parents(type).forEach(p => {
+      const kids = childrenOf(p.id);
+      h += `<div class="row prow ${kids.length ? 'hasSubs' : ''} ${sel === p.id ? 'on' : ''}" onclick="App.setCat('${p.id}')">${catBadge(p)}<div class="mid"><div class="tt">${esc(p.name)}</div></div>${sel === p.id ? `<span class="chk">${icon('check', 20)}</span>` : ''}</div>`;
+      if (kids.length) h += `<div class="subchips">${kids.map(c => `<button class="chip ${sel === c.id ? 'on' : ''}" onclick="App.setCat('${c.id}')">${catIcon(c) ? icon(catIcon(c), 15) : ''}${esc(c.name)}</button>`).join('')}</div>`;
+    });
+    return h + '</div>';
+  });
+}
+function setCat(id) { draft.cat = id; back(); }
+
+/* ================= Операция ================= */
 function defaultAcc() {
   const last = ui.lastAcc && accById(ui.lastAcc);
   return last && !last.archived ? last.id : (D.accounts.find(a => !a.archived) || {}).id;
@@ -771,31 +904,30 @@ function txForm() {
     h += `<label>Сумма перевода, ${sym(accCur(d.acc))}<input id="f_amount" class="amount" inputmode="decimal" placeholder="0" value="${esc(d.amount)}" oninput="App.amt(this.value)"></label>`;
   } else {
     h += `<div class="amtrow"><label>${isR ? 'Сумма возврата' : 'Сумма'}<input id="f_amount" class="amount" inputmode="decimal" placeholder="0" value="${esc(d.amount)}" oninput="App.amt(this.value)"></label>
-      <label>Валюта<select onchange="App.df('cur',this.value)">${Object.entries(CURS).map(([k, c]) => `<option value="${k}" ${k === d.cur ? 'selected' : ''}>${c.s} ${k}</option>`).join('')}</select></label></div>`;
+      <label>Валюта${selField(`<span class="grow">${CURS[d.cur].s} ${d.cur}</span>`, 'App.pickCur()')}</label></div>`;
     if (d.cur !== 'RUB') {
       h += `<label>${accCur(d.acc) === 'RUB' ? 'В рублях — столько спишется / зачислится на счёт' : 'В рублях (для аналитики)'}<input id="f_rub" inputmode="decimal" placeholder="0" value="${esc(d.rub)}" oninput="App.rubIn(this.value)"></label>`;
     }
   }
   if (!isT && formCurs().length) h += `<div class="hint pad" id="rateHint">${rateHint()}</div>`;
   if (isR) {
-    const exps = D.tx.filter(t => t.type === 'expense').sort(sortTx).slice(0, 300);
-    h += `<label>Какую покупку вернули<select onchange="App.pickRef(this.value)"><option value="">— не привязывать —</option>${exps.map(t => `<option value="${t.id}" ${t.id === d.ref ? 'selected' : ''}>${shortDate(t.date)} · ${esc(t.title || catPath(t.cat) || 'Без названия')} · ${money(t.amount, '', curOf(t))}</option>`).join('')}</select></label>`;
     const o = d.ref && txById(d.ref);
+    h += `<label>Какую покупку вернули${selField(o ? `${catBadge(catById(o.cat))}<span class="grow">${esc(o.title || catPath(o.cat) || 'Без названия')}<small>${shortDate(o.date)}</small></span>` : `<span class="grow" style="color:var(--hint)">Не привязывать</span>`, 'App.pickRefTx()')}</label>`;
     h += o
       ? `<div class="hint pad">Покупка: ${money(o.amount, '', curOf(o))}${refundedSum(o.id, d.id) ? ` · уже возвращено ${money(refundedSum(o.id, d.id), '', curOf(o))}` : ''}. Укажите сумму, которую вам фактически вернули, — разница останется расходом.</div>`
       : `<div class="hint pad">Привяжите покупку, чтобы возврат уменьшил расход в той же категории и в месяце покупки. Сумма возврата может быть меньше суммы покупки.</div>`;
   }
   h += `<label>Дата${dateField(d.date, "App.df('date',this.value)")}</label>`;
   if (isT) {
-    h += `<label>Откуда<select onchange="App.df('acc',this.value)">${accOptions(d.acc)}</select></label>
-      <label>Куда<select onchange="App.df('to',this.value)"><option value="">— выберите счёт —</option>${accOptions(d.to)}</select></label>`;
+    h += `<label>Откуда${selField(accInner(d.acc), "App.pickAcc('acc')")}</label>
+      <label>Куда${selField(accInner(d.to), "App.pickAcc('to')")}</label>`;
     if (d.to && accCur(d.to) !== accCur(d.acc)) {
       h += `<label>Зачислено на «${esc(accName(d.to))}», ${sym(accCur(d.to))}<input id="f_amt2" inputmode="decimal" placeholder="0" value="${esc(d.amount2)}" oninput="App.a2In(this.value)"></label>
         <div class="hint pad" id="rateHint">${rateHint()}</div>`;
     }
   } else {
-    h += `<label>${d.type === 'expense' ? 'Счёт списания' : 'Счёт зачисления'}<select onchange="App.df('acc',this.value)">${accOptions(d.acc)}</select></label>
-      <label>Категория<select onchange="App.d('cat',this.value)">${catOptions(d.type === 'income' ? 'income' : 'expense', d.cat)}</select></label>`;
+    h += `<label>Категория${selField(catInner(d.cat), 'App.pickCat()')}</label>
+      <label>${d.type === 'expense' ? 'Счёт списания' : 'Счёт зачисления'}${selField(accInner(d.acc), "App.pickAcc('acc')")}</label>`;
   }
   h += `<label>Название<input placeholder="${isT ? 'Например: пополнение вклада' : isR ? 'Например: возврат билетов' : 'Например: билеты в Казань'}" value="${esc(d.title)}" oninput="App.d('title',this.value)"></label>
     <label>Заметка<textarea rows="2" placeholder="Необязательно" oninput="App.d('note',this.value)">${esc(d.note)}</textarea></label>
@@ -891,8 +1023,8 @@ function accForm() {
   const d = draft, used = d.id && D.tx.some(t => t.acc === d.id || t.to === d.id);
   return sheetHead(d.id ? 'Счёт' : 'Новый счёт') + `
     <label>Название<input value="${esc(d.name)}" placeholder="Например: Зарплатная карта" oninput="App.d('name',this.value)"></label>
-    <label>Тип<select onchange="App.d('type',this.value)">${Object.entries(ACC_TYPE_ONE).map(([k, l]) => `<option value="${k}" ${d.type === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-    <label>Валюта счёта<select ${used ? 'disabled' : ''} onchange="App.dr('cur',this.value)">${curOptions(d.cur)}</select></label>
+    <label>Тип${selField(`<div class="ic">${icon(ACC_ICON[d.type], 18)}</div><span class="grow">${ACC_TYPE_ONE[d.type]}</span>`, 'App.pickAccType()')}</label>
+    <label>Валюта счёта${selField(curInner(d.cur), "App.pickCur('acc')", used)}</label>
     ${used ? '<div class="hint pad">Валюту нельзя поменять: по счёту уже есть операции.</div>' : ''}
     <label>Начальный остаток, ${CURS[d.cur].s}<input inputmode="decimal" value="${esc(d.initial)}" placeholder="0" oninput="App.d('initial',this.value)"></label>
     <div class="hint pad">Сколько денег было на счёте до первой операции в приложении. Дальше баланс на любую дату считается сам.</div>
@@ -923,7 +1055,7 @@ async function delAcc() {
 /* ================= Категории ================= */
 function editCat(id, parentId) {
   const c = id ? catById(id) : null;
-  draft = {id:c ? c.id : null, name:c ? c.name : '', color:c ? catColor(c) : COLORS[D.cats.length % COLORS.length], parent:c ? c.parent || '' : (parentId || ''), type:c ? c.type : (parentId ? catById(parentId).type : ui.catTab)};
+  draft = {id:c ? c.id : null, name:c ? c.name : '', icon:c ? (c.icon !== undefined ? c.icon : (NAME_ICON[c.name] || '')) : '', color:c ? catColor(c) : COLORS[D.cats.length % COLORS.length], parent:c ? c.parent || '' : (parentId || ''), type:c ? c.type : (parentId ? catById(parentId).type : ui.catTab)};
   openSheet(catForm);
 }
 function catForm() {
@@ -931,8 +1063,12 @@ function catForm() {
   return sheetHead(d.id ? 'Категория' : (d.parent ? 'Новая подкатегория' : 'Новая категория')) + `
     <div class="hint">${d.type === 'income' ? 'Категория доходов' : 'Категория расходов'}</div>
     <label>Название<input value="${esc(d.name)}" oninput="App.d('name',this.value)"></label>
+    <label>Иконка${d.parent ? ' <span style="opacity:.7">(если не выбрать — как у основной категории)</span>' : ''}<div class="igrid" style="color:${d.parent ? catColor(catById(d.parent)) : d.color}">
+      <button class="${!d.icon ? 'on' : ''}" onclick="App.dr('icon','')" title="Без иконки">${d.parent ? icon('none', 20) : 'Аа'}</button>
+      ${Object.keys(CAT_ICONS).map(k => `<button class="${d.icon === k ? 'on' : ''}" onclick="App.dr('icon','${k}')">${icon(k, 22)}</button>`).join('')}
+    </div></label>
     ${!d.parent ? `<label>Цвет<div class="sw">${COLORS.map(c => `<button style="background:${c}" class="${c === d.color ? 'on' : ''}" onclick="App.dr('color','${c}')"></button>`).join('')}</div></label>` : ''}
-    ${hasKids ? '' : `<label>Входит в категорию<select onchange="App.dr('parent',this.value)"><option value="">— нет, это основная категория —</option>${parents(d.type).filter(p => p.id !== d.id).map(p => `<option value="${p.id}" ${p.id === d.parent ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>`}
+    ${hasKids ? '' : `<label>Входит в категорию${selField(d.parent ? `${catBadge(catById(d.parent))}<span class="grow">${esc(catById(d.parent).name)}</span>` : `<span class="grow">Нет — это основная категория</span>`, 'App.pickParent()')}</label>`}
     <button class="btn" onclick="App.saveCat()">Сохранить</button>
     ${d.id ? `<button class="btn danger" onclick="App.delCat()">Удалить</button>` : ''}`;
 }
@@ -941,6 +1077,7 @@ function saveCat() {
   if (!d.name.trim()) return toast('Введите название');
   const c = {id:d.id || uid(), type:d.type, name:d.name.trim()};
   if (d.parent) c.parent = d.parent; else c.color = d.color;
+  c.icon = d.icon || '';  // пустая строка — осознанно «без иконки»
   const i = D.cats.findIndex(x => x.id === c.id);
   if (i >= 0) D.cats[i] = c; else D.cats.push(c);
   syncColl('cats', [c]); haptic('success'); back(); render();
@@ -1013,6 +1150,7 @@ async function doRestore() {
 /* ================= Связка с кнопками ================= */
 window.App = {
   newTx, editTx, saveTx, delTx, dtype, pickRef, df, accView,
+  pick, pickAcc, pickCur, pickAccType, pickRefTx, pickParent, pickCat, setCat,
   amt(v) { draft.amount = v; recalc(); },
   rubIn(v) { draft.rub = v; draft.rubManual = true; },
   a2In(v) { draft.amount2 = v; draft.a2Manual = true; },
