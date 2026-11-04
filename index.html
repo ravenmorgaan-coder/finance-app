@@ -84,6 +84,14 @@ label textarea{resize:vertical}
 .igrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(46px,1fr));gap:8px;margin-top:6px}
 .igrid button{aspect-ratio:1;border:0;border-radius:12px;background:var(--card2);color:var(--hint);display:grid;place-items:center;cursor:pointer;font:inherit;font-size:11px}
 .igrid button.on{color:inherit;background:#ffffff10;outline:2px solid currentColor;outline-offset:-2px}
+.cg{border-bottom:1px solid var(--line);background:transparent}
+.cg:last-child{border-bottom:0}
+.cg>.row:last-child{border-bottom:0}
+.dsub{padding-left:14px!important}
+.grip{display:grid;place-items:center;width:28px;height:34px;margin:-6px 0 -6px -8px;color:var(--hint);opacity:.7;touch-action:none;cursor:grab;flex:none}
+.dragging{position:relative;z-index:5;background:var(--card2)!important;box-shadow:0 10px 30px rgba(0,0,0,.45);border-radius:12px;opacity:.97}
+.dragging .grip{cursor:grabbing;opacity:1;color:var(--accent)}
+body.dragmode{user-select:none;-webkit-user-select:none}
 .subic{width:26px!important;height:26px!important;border-radius:8px!important}
 .subic .i{width:15px;height:15px}
 .day{color:var(--hint);font-size:13px;margin:14px 4px 6px}
@@ -248,6 +256,7 @@ const ICONS = {
   none:'<circle cx="12" cy="12" r="7" stroke-dasharray="3 3"/>',
   cal:'<rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M9 3v4M15 3v4"/>',
   down:'<path d="M7 10l5 5 5-5"/>',
+  grip:'<circle cx="9" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="9" cy="18" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="18" r="1.4" fill="currentColor" stroke="none"/>',
   check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',
 };
 /* Библиотека иконок для категорий */
@@ -492,8 +501,11 @@ const catBadge = (c, cls = '') => {
   const col = catColor(topOf(c)), ic = catIcon(c);
   return `<div class="ic cat ${cls}" style="background:${col}22;color:${col}">${ic ? icon(ic, 20) : esc(c.name.trim().charAt(0).toUpperCase())}</div>`;
 };
-const parents = type => D.cats.filter(c => c.type === type && !c.parent);
-const childrenOf = id => D.cats.filter(c => c.parent === id);
+// Порядок категорий задается полем order (его меняет перетаскивание); у старых категорий его нет — тогда по порядку добавления
+const catOrd = c => c.order ?? (1e6 + D.cats.indexOf(c));
+const byOrd = (a, b) => catOrd(a) - catOrd(b);
+const parents = type => D.cats.filter(c => c.type === type && !c.parent).sort(byOrd);
+const childrenOf = id => D.cats.filter(c => c.parent === id).sort(byOrd);
 const accCur = id => (accById(id) || {}).cur || 'RUB';
 const curOf = t => t.cur || 'RUB';
 // Сумма операции в рублях (для аналитики) — фиксируется по курсу на дату операции
@@ -844,11 +856,70 @@ function viewCats() {
   let h = seg('catTab', [['expense','Расходы'],['income','Доходы']]) + '<div class="card">';
   const ps = parents(ui.catTab);
   if (!ps.length) h += '<div class="empty">Категорий пока нет</div>';
+  const grip = `<span class="grip" onpointerdown="App.drag(event)" onclick="event.stopPropagation()" title="Перетащите">${icon('grip', 20)}</span>`;
   ps.forEach(p => {
-    h += `<div class="row" onclick="App.editCat('${p.id}')">${catBadge(p)}<div class="mid"><div class="tt">${esc(p.name)}</div></div><button class="mini" onclick="event.stopPropagation();App.editCat(null,'${p.id}')">+ подкатегория</button></div>`;
-    childrenOf(p.id).forEach(c => { h += `<div class="row subrow" style="padding-left:24px" onclick="App.editCat('${c.id}')"><div style="width:34px"></div>${catBadge(c, 'subic')}<div class="mid"><div class="tt">${esc(c.name)}</div></div></div>`; });
+    h += `<div class="cg" data-id="${p.id}"><div class="row" onclick="App.editCat('${p.id}')">${grip}${catBadge(p)}<div class="mid"><div class="tt">${esc(p.name)}</div></div><button class="mini" onclick="event.stopPropagation();App.editCat(null,'${p.id}')">+ подкатегория</button></div>`;
+    childrenOf(p.id).forEach(c => { h += `<div class="row subrow dsub" data-id="${c.id}" onclick="App.editCat('${c.id}')"><div style="width:34px;flex:none"></div>${grip}${catBadge(c, 'subic')}<div class="mid"><div class="tt">${esc(c.name)}</div></div></div>`; });
+    h += '</div>';
   });
-  return h + `</div><button class="btn" onclick="App.editCat()">+ Новая категория</button>`;
+  return h + `</div><div class="hint" style="margin:-4px 4px 0">Потяните за ${icon('grip', 14).replace('class="i"', 'class="i" style="display:inline;vertical-align:-2px"')}, чтобы поменять порядок. В таком же порядке категории будут в окне выбора при заведении операции.</div>
+    <button class="btn" onclick="App.editCat()">+ Новая категория</button>`;
+}
+
+/* ================= Перетаскивание категорий =================
+   Тянем за ручку: основная категория переезжает вместе с подкатегориями,
+   подкатегория — только внутри своей категории. */
+function drag(e) {
+  const grip = e.currentTarget, row = grip.closest('.row');
+  const el = row.classList.contains('dsub') ? row : row.closest('.cg');
+  const box = el.parentNode, isSub = el.classList.contains('dsub');
+  const sibs = () => [...box.children].filter(x => x !== el && (isSub ? x.classList.contains('dsub') : x.classList.contains('cg')));
+  e.preventDefault();
+  try { grip.setPointerCapture(e.pointerId); } catch (_) {}
+  const startPageY = e.clientY + scrollY, startTop = el.offsetTop;
+  const startY = e.clientY;
+  let pointerY = e.clientY, raf = 0, moved = false;
+  el.classList.add('dragging'); document.body.classList.add('dragmode');
+  const place = () => {
+    const pageY = pointerY + scrollY;
+    const shift = () => { el.style.transform = `translateY(${pageY - startPageY - (el.offsetTop - startTop)}px)`; };
+    shift();
+    for (let k = 0; k < 60; k++) {   // переставляем, пока элемент не встанет на место (даже при очень быстром движении)
+      const r = el.getBoundingClientRect(), center = r.top + r.height / 2;
+      let before = null;
+      for (const s of sibs()) { const q = s.getBoundingClientRect(); if (center < q.top + q.height / 2) { before = s; break; } }
+      // первый «сосед» после перетаскиваемого; если это и есть before — элемент уже на месте
+      const following = sibs().find(s => el.compareDocumentPosition(s) & Node.DOCUMENT_POSITION_FOLLOWING) || null;
+      if (following === before) break;
+      if (before) box.insertBefore(el, before); else box.appendChild(el);
+      moved = true; shift();
+      try { IN_TG && TG.HapticFeedback.selectionChanged(); } catch (_) {}
+    }
+  };
+  const tick = () => {   // автопрокрутка у краев экрана
+    const edge = 90, bottom = innerHeight - 110;
+    if (Math.abs(pointerY - startY) < 12) return;  // палец еще не сдвинулся
+    const y0 = scrollY;
+    if (pointerY < edge) scrollBy(0, -Math.ceil((edge - pointerY) / 6));
+    else if (pointerY > bottom) scrollBy(0, Math.ceil((pointerY - bottom) / 6));
+    if (scrollY !== y0) place();
+  };
+  const onMove = ev => { pointerY = ev.clientY; place(); };
+  const onUp = ev => {
+    clearInterval(raf);
+    if (ev && ev.clientY) pointerY = ev.clientY;
+    place();
+    grip.removeEventListener('pointermove', onMove); grip.removeEventListener('pointerup', onUp); grip.removeEventListener('pointercancel', onUp);
+    el.classList.remove('dragging'); el.style.transform = ''; document.body.classList.remove('dragmode');
+    if (!moved) return;
+    const ids = [...box.children].filter(x => isSub ? x.classList.contains('dsub') : x.classList.contains('cg')).map(x => x.dataset.id);
+    const puts = [];
+    ids.forEach((id, i) => { const c = catById(id); if (c && c.order !== i) { c.order = i; puts.push(c); } });
+    if (puts.length) syncColl('cats', puts);
+    render();
+  };
+  grip.addEventListener('pointermove', onMove); grip.addEventListener('pointerup', onUp); grip.addEventListener('pointercancel', onUp);
+  raf = setInterval(tick, 16);
 }
 
 /* ================= Шторка (модальное окно) ================= */
@@ -1171,6 +1242,12 @@ function saveCat() {
   if (!d.name.trim()) return toast('Введите название');
   const c = {id:d.id || uid(), type:d.type, name:d.name.trim()};
   if (d.parent) c.parent = d.parent; else c.color = d.color;
+  const old = d.id && catById(d.id);
+  if (old && (old.parent || '') === (d.parent || '') && old.order != null) c.order = old.order;
+  else if (!old || (old.parent || '') !== (d.parent || '')) {
+    const sibs = d.parent ? childrenOf(d.parent) : parents(d.type);
+    c.order = sibs.filter(x => x.id !== c.id).reduce((m, x) => Math.max(m, catOrd(x)), -1) + 1;  // в конец списка
+  }
   c.icon = d.icon || '';  // пустая строка — осознанно «без иконки»
   const i = D.cats.findIndex(x => x.id === c.id);
   if (i >= 0) D.cats[i] = c; else D.cats.push(c);
@@ -1244,7 +1321,7 @@ async function doRestore() {
 /* ================= Связка с кнопками ================= */
 window.App = {
   newTx, editTx, saveTx, delTx, dtype, pickRef, df, accView,
-  pick, pickAcc, pickCur, pickAccType, pickRefTx, pickParent, pickCat, setCat,
+  drag, pick, pickAcc, pickCur, pickAccType, pickRefTx, pickParent, pickCat, setCat,
   amt(v) { draft.amount = v; recalc(); },
   rubIn(v) { draft.rub = v; draft.rubManual = true; },
   a2In(v) { draft.amount2 = v; draft.a2Manual = true; },
