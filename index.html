@@ -183,7 +183,9 @@ label>input,label>select,label>textarea{margin-top:4px}
 const TG = window.Telegram && window.Telegram.WebApp;
 const IN_TG = !!(TG && TG.initData);
 const $ = s => document.querySelector(s);
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// Буква «Е» с точками не используется: и в интерфейсе, и в сохраненных названиях она показывается как «Е»
+const noYo = s => String(s ?? '').replace(/\u0451/g, '\u0435').replace(/\u0401/g, '\u0415');
+const esc = s => noYo(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let _cnt = 0;
 const uid = () => Date.now().toString(36) + (_cnt++ % 1296).toString(36).padStart(2,'0') + Math.random().toString(36).slice(2,5);
 const r2 = n => Math.round((+n || 0) * 100) / 100;
@@ -213,7 +215,7 @@ const parseAmount = v => { const n = parseFloat(String(v).replace(/[\s ]/g,'').
 
 const TYPES = {expense:'Расход', income:'Доход', transfer:'Перевод', refund:'Возврат'};
 const ACC_TYPES = {card:'Карты', account:'Счета', deposit:'Вклады', cash:'Наличные'};
-const ACC_TYPE_ONE = {card:'Карта', account:'Счёт', deposit:'Вклад', cash:'Наличные'};
+const ACC_TYPE_ONE = {card:'Карта', account:'Счет', deposit:'Вклад', cash:'Наличные'};
 /* Простые линейные иконки (SVG, 24×24, цвет берут от текста) */
 const ICONS = {
   ops:'<path d="M4 7h16M4 12h10M4 17h13"/>',
@@ -288,7 +290,7 @@ const icon = (name, size = 22) => `<svg class="i" width="${size}" height="${size
 const NAME_ICON = {
   'Продукты':'cart','Супермаркет':'cart','Рынок':'apple','Кафе и рестораны':'fork','Рестораны':'fork','Кофе':'coffee','Доставка еды':'box',
   'Транспорт':'bus','Общественный транспорт':'bus','Такси':'car','Поезда':'train','Авиабилеты':'plane','Топливо':'fuel',
-  'Жильё':'home','Аренда':'key','Коммунальные услуги':'bulb','Интернет и связь':'wifi','Здоровье':'heart','Аптека':'pill','Врачи':'medic','Спорт':'sport',
+  'Жилье':'home','Аренда':'key','Коммунальные услуги':'bulb','Интернет и связь':'wifi','Здоровье':'heart','Аптека':'pill','Врачи':'medic','Спорт':'sport',
   'Одежда и обувь':'shirt','Красота':'sparkle','Развлечения':'ticket','Кино и театр':'ticket','Подписки':'play','Хобби':'palette',
   'Путешествия':'suitcase','Отели':'bed','Экскурсии':'pin','Подарки':'gift','Образование':'book','Прочее':'dots',
   'Зарплата':'briefcase','Аванс':'coins','Основная часть':'briefcase','Премия':'star','Подработка':'laptop','Проценты и кэшбэк':'percent','Проценты по вкладу':'percent','Кэшбэк':'coins',
@@ -322,7 +324,7 @@ const Store = (() => {
       const n = meta.blobs[name] || 0;
       if (!n) { res[name] = null; continue; }
       let str = ''; for (let i = 0; i < n; i++) str += vals[name + '__' + i] || '';
-      try { res[name] = JSON.parse(str); } catch (e) { console.error('Повреждён блок', name, e); res[name] = null; bad.push(name); }
+      try { res[name] = JSON.parse(str); } catch (e) { console.error('Поврежден блок', name, e); res[name] = null; bad.push(name); }
     }
     return {res, bad};
   }
@@ -339,8 +341,8 @@ const Store = (() => {
     });
   }
   /* Безопасное сохранение: перед записью заново читаем свежую версию блока из облака
-     (её могло изменить другое устройство), передаём в fn и записываем результат.
-     fallback() — локальная версия на случай, если блок в облаке повреждён. */
+     (ее могло изменить другое устройство), передаем в fn и записываем результат.
+     fallback() — локальная версия на случай, если блок в облаке поврежден. */
   function update(name, fn, fallback) {
     return enqueue(async () => {
       const meta0 = await readMeta() || {v:1, blobs:{}};
@@ -349,7 +351,7 @@ const Store = (() => {
       const str = data == null ? '' : JSON.stringify(data);
       const parts = []; for (let i = 0; i < str.length; i += CH) parts.push(str.slice(i, i + CH));
       for (let i = 0; i < parts.length; i++) await set(name + '__' + i, parts[i]);
-      const meta = await readMeta() || {v:1, blobs:{}};  // ещё раз свежее оглавление — меняем только свою строку
+      const meta = await readMeta() || {v:1, blobs:{}};  // еще раз свежее оглавление — меняем только свою строку
       const old = Math.max(meta.blobs[name] || 0, meta0.blobs[name] || 0);
       if (parts.length) meta.blobs[name] = parts.length; else delete meta.blobs[name];
       await set('meta', JSON.stringify(meta));
@@ -364,7 +366,7 @@ const Store = (() => {
 
 /* ================= Курсы валют (ЦБ РФ) =================
    Источник: cbr-xml-daily.ru — официальные курсы ЦБ в JSON. Кэшируются на устройстве.
-   Для прошедших дат берётся курс на эту дату (в выходные — последний рабочий день). */
+   Для прошедших дат берется курс на эту дату (в выходные — последний рабочий день). */
 const Rates = (() => {
   const KEY = 'fin_rates';
   let cache = {}; try { cache = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) {}
@@ -391,7 +393,7 @@ const Rates = (() => {
       return cache[key];
     })().catch(e => { failed[key] = true; if (c) return c; throw e; }).finally(() => delete pending[key]);
   }
-  // Курс: сколько рублей за 1 единицу валюты. null — курс ещё не загружен.
+  // Курс: сколько рублей за 1 единицу валюты. null — курс еще не загружен.
   const get = (date, cur) => cur === 'RUB' || !cur ? 1 : ((cache[keyOf(date)] || {})[cur] || null);
   const info = date => cache[keyOf(date)];
   // Если курса нет — загрузить и потом вызвать cb (один раз, без повторов при ошибке)
@@ -410,7 +412,7 @@ function seed() {
     ['🛒','Продукты',['Супермаркет','Рынок']],
     ['🍽','Кафе и рестораны',['Рестораны','Кофе','Доставка еды']],
     ['🚇','Транспорт',['Общественный транспорт','Такси','Поезда','Авиабилеты','Топливо']],
-    ['🏠','Жильё',['Аренда','Коммунальные услуги','Интернет и связь']],
+    ['🏠','Жилье',['Аренда','Коммунальные услуги','Интернет и связь']],
     ['💊','Здоровье',['Аптека','Врачи','Спорт']],
     ['👗','Одежда и обувь',[]],
     ['💅','Красота',[]],
@@ -430,8 +432,8 @@ function seed() {
   const cats = [];
   let k = 0;
   const add = (type, list) => list.forEach(([, name, subs]) => {
-    const id = uid(); cats.push({id, type, name, color:COLORS[k++ % COLORS.length], icon:NAME_ICON[name]});
-    subs.forEach(s => cats.push({id:uid(), type, name:s, parent:id, icon:NAME_ICON[s]}));
+    const id = uid(); cats.push({id, type, name, color:COLORS[k++ % COLORS.length], icon:NAME_ICON[noYo(name)]});
+    subs.forEach(s => cats.push({id:uid(), type, name:s, parent:id, icon:NAME_ICON[noYo(s)]}));
   });
   add('expense', E); add('income', I);
   D = {accounts:[{id:uid(), name:'Основная карта', type:'card', initial:0}], cats, tx:[]};
@@ -446,7 +448,7 @@ const catPath = id => { const c = catById(id); if (!c) return ''; const p = c.pa
 const hashColor = s => { let h = 0; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) | 0; return COLORS[Math.abs(h) % COLORS.length]; };
 const catColor = c => c ? (c.color || hashColor(c.id)) : '#7b818e';
 // Иконка категории: своя → стандартная по названию → иконка родителя
-const catIcon = c => { if (!c) return null; const own = c.icon !== undefined ? c.icon : NAME_ICON[c.name]; if (own) return own; const p = c.parent && catById(c.parent); return p ? (p.icon || NAME_ICON[p.name] || null) : null; };
+const catIcon = c => { if (!c) return null; const own = c.icon !== undefined ? c.icon : NAME_ICON[noYo(c.name)]; if (own) return own; const p = c.parent && catById(c.parent); return p ? (p.icon || NAME_ICON[noYo(p.name)] || null) : null; };
 // Значок категории: цветная плашка (цвет основной категории) с иконкой, а если иконки нет — с первой буквой
 const catBadge = (c, cls = '') => {
   if (!c) return `<div class="ic ${cls}">${icon('none', 20)}</div>`;
@@ -459,7 +461,7 @@ const accCur = id => (accById(id) || {}).cur || 'RUB';
 const curOf = t => t.cur || 'RUB';
 // Сумма операции в рублях (для аналитики) — фиксируется по курсу на дату операции
 const rubOf = t => t.rub ?? t.amount;
-// На сколько операция меняет баланс счёта (в валюте счёта)
+// На сколько операция меняет баланс счета (в валюте счета)
 const accAmtOf = t => t.accAmt ?? t.amount;
 // Сколько уже вернули по покупке — в валюте покупки
 const refundedSum = (id, exceptId) => {
@@ -478,7 +480,7 @@ const monthKey = m => 'tx_' + m.replace('-', '_');
 /* ===== Синхронизация =====
    Сохраняем не «весь список целиком», а изменения: какие записи добавлены/изменены и какие удалены.
    Перед записью изменения накладываются на свежую версию из облака, поэтому правки,
-   сделанные на другом устройстве, не затираются. Пока запись идёт, локальная правка «в приоритете». */
+   сделанные на другом устройстве, не затираются. Пока запись идет, локальная правка «в приоритете». */
 const pend = {put:new Map(), del:new Map()};
 const inc = (map, k) => map.set(k, (map.get(k) || 0) + 1);
 const dec = (map, k) => { const n = (map.get(k) || 1) - 1; n ? map.set(k, n) : map.delete(k); };
@@ -547,20 +549,20 @@ async function reloadAll() {
   } catch (e) { console.error(e); } finally { reloading = false; }
 }
 
-// Изменения балансов от одной операции: [[счёт, сумма в валюте счёта], ...]
+// Изменения балансов от одной операции: [[счет, сумма в валюте счета], ...]
 function deltas(t) {
   if (t.type === 'expense') return [[t.acc, -accAmtOf(t)]];
   if (t.type === 'income' || t.type === 'refund') return [[t.acc, accAmtOf(t)]];
   if (t.type === 'transfer') return [[t.acc, -t.amount], [t.to, t.amount2 ?? t.amount]];
   return [];
 }
-// Остатки всех счетов на конец дня upTo (по умолчанию — с учётом всех операций)
+// Остатки всех счетов на конец дня upTo (по умолчанию — с учетом всех операций)
 function balances(upTo) {
   const b = {}; D.accounts.forEach(a => b[a.id] = +a.initial || 0);
   for (const t of D.tx) if (!upTo || t.date <= upTo) for (const [acc, v] of deltas(t)) b[acc] = (b[acc] || 0) + v;
   return b;
 }
-// История счёта: [{date, delta, end}] по дням с операциями, по возрастанию
+// История счета: [{date, delta, end}] по дням с операциями, по возрастанию
 function accHistory(id) {
   const days = {};
   for (const t of D.tx) for (const [acc, v] of deltas(t)) if (acc === id) days[t.date] = (days[t.date] || 0) + v;
@@ -723,7 +725,7 @@ function donut(groups, type) {
   return ring(segs, `${title} по категориям — ${periodLabel()}`,
     `<span class="hint">${title}</span><b>${money(total)}</b>`, `${segs.length} ${plural(segs.length, 'категория', 'категории', 'категорий')}`);
 }
-// Цвет счёта — по порядку в списке
+// Цвет счета — по порядку в списке
 const accColor = a => COLORS[Math.max(0, D.accounts.indexOf(a)) % COLORS.length];
 
 function viewAcc() {
@@ -739,20 +741,23 @@ function viewAcc() {
     return `<div class="row" onclick="App.accView('${a.id}')"><div class="ic" style="color:${accColor(a)};background:${accColor(a)}22">${icon(ACC_ICON[a.type] || 'card', 20)}</div><div class="mid"><div class="tt">${esc(a.name)}</div>${c !== 'RUB' ? `<div class="sub">${CURS[c].n}</div>` : ''}</div><div class="amt ${b[a.id] < 0 ? 'neg' : ''}">${signed(b[a.id], c)}${c !== 'RUB' && r ? `<div class="rub">≈ ${signed(b[a.id] * r)}</div>` : ''}</div></div>`;
   };
   let h = `<div class="datebar"><span class="hint">Остатки на</span>${dateField(date, 'App.accDate(this.value)')}${!isToday ? `<button class="mini" onclick="App.accDate('')">Сегодня</button>` : ''}</div>
-    <div class="card big"><span class="hint">${isToday ? 'Всего на счетах сейчас' : 'Всего на конец дня ' + dayLabel(date)}</span><b>${missing ? '…' : signed(total)}</b>${hasFx ? `<div class="hint">Валюта пересчитана в рубли по курсу ЦБ${isToday ? '' : ' на эту дату'}</div>` : ''}</div>`;
+    <div class="card big"><span class="hint">${isToday ? 'Всего денег сейчас' : 'Всего денег на конец дня ' + dayLabel(date)}</span><b>${missing ? '…' : signed(total)}</b>${hasFx ? `<div class="hint">Валюта пересчитана в рубли по курсу ЦБ${isToday ? '' : ' на эту дату'}</div>` : ''}</div>`;
   if (!missing) {
+    // Все карты, счета, вклады и наличные (кроме архивных)
     const segs = act.map(a => ({name:a.name, value:b[a.id] * (Rates.get(date, a.cur || 'RUB') || 0), amt:signed(b[a.id], a.cur || 'RUB'), color:accColor(a), onclick:`App.accView('${a.id}')`}));
-    const pos = segs.filter(x => x.value > 0), neg = act.filter(a => b[a.id] < 0).length;
-    h += ring(segs, 'Где лежат деньги', `<span class="hint">${isToday ? 'Сейчас' : 'На ' + ruDate(date)}</span><b>${money(pos.reduce((s, x) => s + x.value, 0))}</b>`,
-      `${pos.length} ${plural(pos.length, 'счёт', 'счёта', 'счетов')}`) +
-      (neg ? `<div class="hint" style="margin:-4px 4px 12px">Счета с минусом (например, кредитка) в диаграмму не входят.</div>` : '');
+    const inRing = act.filter(a => b[a.id] > 0), neg = act.filter(a => b[a.id] < 0).length;
+    const T = {card:['карта','карты','карт'], account:['счет','счета','счетов'], deposit:['вклад','вклада','вкладов']};
+    const parts = Object.keys(ACC_TYPE_ONE).map(t => { const n = inRing.filter(a => a.type === t).length; return !n ? '' : t === 'cash' ? 'наличные' : `${n} ${plural(n, ...T[t])}`; }).filter(Boolean);
+    h += ring(segs, 'Где лежат деньги', `<span class="hint">${isToday ? 'Сейчас' : 'На ' + ruDate(date)}</span><b>${money(inRing.reduce((s, a) => s + b[a.id] * (Rates.get(date, a.cur || 'RUB') || 0), 0))}</b>`,
+      'все вместе') +
+      `<div class="hint" style="margin:-4px 4px 12px">В кольце: ${parts.join(' · ')}.${neg ? ' Счета с минусом (например, кредитка) в кольцо не входят.' : ''}</div>`;
   }
   for (const [type, label] of Object.entries(ACC_TYPES)) {
     const list = act.filter(a => a.type === type);
     if (list.length) h += `<div class="day">${label}</div><div class="card">${list.map(row).join('')}</div>`;
   }
-  h += `<div class="hint" style="margin:-4px 4px 0">Нажмите на счёт, чтобы увидеть остаток по дням.</div>
-    <button class="btn" onclick="App.editAcc()">+ Добавить карту, счёт или вклад</button>`;
+  h += `<div class="hint" style="margin:-4px 4px 0">Нажмите на счет, чтобы увидеть остаток по дням.</div>
+    <button class="btn" onclick="App.editAcc()">+ Добавить карту, счет или вклад</button>`;
   if (arch.length) h += `<div class="day">В архиве</div><div class="card">${arch.map(row).join('')}</div>`;
   h += `<div class="day">Данные</div><div class="card pad">
     <div class="hint">${Store.cloud ? 'Данные хранятся в облаке Telegram и доступны на всех ваших устройствах. Их видите только вы.' : 'Тестовый режим: приложение открыто не из Telegram, данные хранятся только в этом браузере.'}</div>
@@ -763,7 +768,7 @@ function viewAcc() {
   return h;
 }
 
-/* История счёта: остаток на любую дату, график и операции по дням */
+/* История счета: остаток на любую дату, график и операции по дням */
 function spark(vals, days) {
   const w = 300, hgt = 110, p = 6, min = Math.min(...vals, 0), max = Math.max(...vals, 0), rng = (max - min) || 1;
   const x = i => p + i * (w - 2 * p) / (vals.length - 1), y = v => p + (max - v) * (hgt - 2 * p) / rng;
@@ -774,7 +779,7 @@ function spark(vals, days) {
 }
 function accView(id) {
   openSheet(() => {
-    const a = accById(id); if (!a) return sheetHead('Счёт') + '<div class="empty">Счёт удалён</div>';
+    const a = accById(id); if (!a) return sheetHead('Счет') + '<div class="empty">Счет удален</div>';
     const c = a.cur || 'RUB', date = ui.accDate, hist = accHistory(id);
     const bal = balanceOn(hist, a.initial, date);
     const days = []; for (let i = 59; i >= 0; i--) { const dt = new Date(date + 'T12:00:00'); dt.setDate(dt.getDate() - i); days.push(dateStr(dt)); }
@@ -784,9 +789,9 @@ function accView(id) {
       `<div class="datebar"><span class="hint">Остаток на</span>${dateField(date, 'App.histDate(this.value)')}${date < todayStr() ? `<button class="mini" onclick="App.histDate('')">Сегодня</button>` : ''}</div>
       <div class="card big"><span class="hint">На конец дня ${dayLabel(date)}</span><b>${signed(bal, c)}</b>${c !== 'RUB' && r ? `<div class="hint">≈ ${signed(bal * r)} по курсу ЦБ</div>` : ''}</div>
       <div class="card pad"><div class="hint">Остаток за 60 дней</div>${spark(vals, days)}</div>
-      <button class="btn sec" onclick="App.editAcc('${id}')">Изменить счёт</button>`;
+      <button class="btn sec" onclick="App.editAcc('${id}')">Изменить счет</button>`;
     const shown = hist.filter(x => x.date <= date).reverse().slice(0, 120);
-    if (!shown.length) h += `<div class="empty">До этой даты операций по счёту нет</div>`;
+    if (!shown.length) h += `<div class="empty">До этой даты операций по счету нет</div>`;
     for (const day of shown) {
       const list = D.tx.filter(t => t.date === day.date && (t.acc === id || t.to === id)).sort(sortTx);
       h += `<div class="day">${dayLabel(day.date)} · остаток <b style="color:var(--text)">${signed(day.end, c)}</b></div><div class="card">${list.map(txRow).join('')}</div>`;
@@ -831,7 +836,7 @@ function ask(msg) {
 /* ================= Окна выбора (вместо системных списков) ================= */
 // Поле-кнопка: показывает текущее значение, по нажатию открывает окно выбора
 const selField = (inner, onclick, disabled) => `<button type="button" class="selfield" ${disabled ? 'disabled' : `onclick="${onclick}"`}>${inner}${disabled ? '' : icon('down', 18)}</button>`;
-const accInner = id => { const a = accById(id); return a ? `<div class="ic">${icon(ACC_ICON[a.type] || 'card', 18)}</div><span class="grow">${esc(a.name)}<small>${CURS[a.cur || 'RUB'].s}</small></span>` : `<span class="grow" style="color:var(--hint)">Выберите счёт</span>`; };
+const accInner = id => { const a = accById(id); return a ? `<div class="ic">${icon(ACC_ICON[a.type] || 'card', 18)}</div><span class="grow">${esc(a.name)}<small>${CURS[a.cur || 'RUB'].s}</small></span>` : `<span class="grow" style="color:var(--hint)">Выберите счет</span>`; };
 const catInner = id => { const c = catById(id); return c ? `${catBadge(c)}<span class="grow">${esc(catPath(id))}</span>` : `${catBadge(null)}<span class="grow" style="color:var(--hint)">Без категории</span>`; };
 const curInner = c => `<span class="grow">${CURS[c].s} ${c}<small>${CURS[c].n}</small></span>`;
 
@@ -847,7 +852,7 @@ function pick(i) { const p = _pick; if (!p) return; const v = p.items[i].v; back
 function pickAcc(field) {
   const b = balances(), sel = draft[field];
   const list = D.accounts.filter(a => !a.archived || a.id === sel);
-  openPicker(field === 'to' ? 'Куда' : 'Счёт', list.map(a => ({v:a.id, label:esc(a.name), sub:`${ACC_TYPE_ONE[a.type]} · ${signed(b[a.id] || 0, a.cur || 'RUB')}`, ic:`<div class="ic">${icon(ACC_ICON[a.type] || 'card', 20)}</div>`})), sel, v => df(field, v));
+  openPicker(field === 'to' ? 'Куда' : 'Счет', list.map(a => ({v:a.id, label:esc(a.name), sub:`${ACC_TYPE_ONE[a.type]} · ${signed(b[a.id] || 0, a.cur || 'RUB')}`, ic:`<div class="ic">${icon(ACC_ICON[a.type] || 'card', 20)}</div>`})), sel, v => df(field, v));
 }
 function pickCur(target) {
   const cur = target === 'acc' ? draft.cur : draft.cur;
@@ -855,7 +860,7 @@ function pickCur(target) {
     v => { if (target === 'acc') { draft.cur = v; showSheet(); } else df('cur', v); });
 }
 function pickAccType() {
-  openPicker('Тип счёта', Object.entries(ACC_TYPE_ONE).map(([k, l]) => ({v:k, label:l, ic:`<div class="ic">${icon(ACC_ICON[k], 20)}</div>`})), draft.type, v => { draft.type = v; showSheet(); });
+  openPicker('Тип счета', Object.entries(ACC_TYPE_ONE).map(([k, l]) => ({v:k, label:l, ic:`<div class="ic">${icon(ACC_ICON[k], 20)}</div>`})), draft.type, v => { draft.type = v; showSheet(); });
 }
 function pickRefTx() {
   const exps = D.tx.filter(t => t.type === 'expense').sort(sortTx).slice(0, 300);
@@ -891,7 +896,7 @@ function defaultAcc() {
 }
 function newTx() {
   const acc = defaultAcc();
-  if (!acc) { toast('Сначала добавьте счёт'); ui.tab = 'acc'; render(); return; }
+  if (!acc) { toast('Сначала добавьте счет'); ui.tab = 'acc'; render(); return; }
   draft = {type:'expense', amount:'', cur:accCur(acc), curTouched:false, rub:'', rubManual:false, amount2:'', a2Manual:false,
     date:todayStr(), acc, to:'', cat:'', title:'', note:'', ref:''};
   openSheet(txForm); prepRates();
@@ -926,7 +931,7 @@ function rateHint() {
   const parts = curs.map(line);
   if (parts.some(p => !p)) return 'Курс ЦБ не загрузился — введите сумму вручную.';
   let s = `Курс ЦБ${when}: ${parts.join(', ')}.`;
-  if (d.type !== 'transfer' && accCur(d.acc) !== d.cur && accCur(d.acc) !== 'RUB') s += ` Со счёта в ${accCur(d.acc)} спишется по этому курсу.`;
+  if (d.type !== 'transfer' && accCur(d.acc) !== d.cur && accCur(d.acc) !== 'RUB') s += ` Со счета в ${accCur(d.acc)} спишется по этому курсу.`;
   return s + ' Можно исправить сумму вручную, если банк посчитал иначе.';
 }
 function recalc() {
@@ -955,7 +960,7 @@ function txForm() {
     h += `<div class="amtrow"><label>${isR ? 'Сумма возврата' : 'Сумма'}<input id="f_amount" class="amount" inputmode="decimal" placeholder="0" value="${esc(d.amount)}" oninput="App.amt(this.value)"></label>
       <label>Валюта${selField(`<span class="grow">${CURS[d.cur].s} ${d.cur}</span>`, 'App.pickCur()')}</label></div>`;
     if (d.cur !== 'RUB') {
-      h += `<label>${accCur(d.acc) === 'RUB' ? 'В рублях — столько спишется / зачислится на счёт' : 'В рублях (для аналитики)'}<input id="f_rub" inputmode="decimal" placeholder="0" value="${esc(d.rub)}" oninput="App.rubIn(this.value)"></label>`;
+      h += `<label>${accCur(d.acc) === 'RUB' ? 'В рублях — столько спишется / зачислится на счет' : 'В рублях (для аналитики)'}<input id="f_rub" inputmode="decimal" placeholder="0" value="${esc(d.rub)}" oninput="App.rubIn(this.value)"></label>`;
     }
   }
   if (!isT && formCurs().length) h += `<div class="hint pad" id="rateHint">${rateHint()}</div>`;
@@ -976,7 +981,7 @@ function txForm() {
     }
   } else {
     h += `<label>Категория${selField(catInner(d.cat), 'App.pickCat()')}</label>
-      <label>${d.type === 'expense' ? 'Счёт списания' : 'Счёт зачисления'}${selField(accInner(d.acc), "App.pickAcc('acc')")}</label>`;
+      <label>${d.type === 'expense' ? 'Счет списания' : 'Счет зачисления'}${selField(accInner(d.acc), "App.pickAcc('acc')")}</label>`;
   }
   h += `<label>Название<input placeholder="${isT ? 'Например: пополнение вклада' : isR ? 'Например: возврат билетов' : 'Например: билеты в Казань'}" value="${esc(d.title)}" oninput="App.d('title',this.value)"></label>
     <label>Заметка<textarea rows="2" placeholder="Необязательно" oninput="App.d('note',this.value)">${esc(d.note)}</textarea></label>
@@ -1016,8 +1021,8 @@ function saveTx() {
   const d = draft, amount = parseAmount(d.amount);
   if (!(amount > 0)) return toast('Введите сумму больше нуля');
   if (!d.date) return toast('Укажите дату');
-  if (!accById(d.acc)) return toast('Выберите счёт');
-  if (d.type === 'transfer' && (!accById(d.to) || d.to === d.acc)) return toast('Выберите другой счёт, куда переводите');
+  if (!accById(d.acc)) return toast('Выберите счет');
+  if (d.type === 'transfer' && (!accById(d.to) || d.to === d.acc)) return toast('Выберите другой счет, куда переводите');
   const aCur = accCur(d.acc);
   const t = {id:d.id || uid(), type:d.type, date:d.date, amount:r2(amount), acc:d.acc};
   if (d.type === 'transfer') {
@@ -1039,7 +1044,7 @@ function saveTx() {
     }
     if (aCur !== cur) {
       if (aCur === 'RUB') t.accAmt = r2(rub);
-      else { const ra = Rates.get(d.date, aCur); if (!ra) return toast('Нет курса для валюты счёта — попробуйте позже'); t.accAmt = r2(rub / ra); }
+      else { const ra = Rates.get(d.date, aCur); if (!ra) return toast('Нет курса для валюты счета — попробуйте позже'); t.accAmt = r2(rub / ra); }
     }
     if (d.type === 'refund' && d.ref) t.ref = d.ref;
   }
@@ -1070,16 +1075,16 @@ function editAcc(id) {
 }
 function accForm() {
   const d = draft, used = d.id && D.tx.some(t => t.acc === d.id || t.to === d.id);
-  return sheetHead(d.id ? 'Счёт' : 'Новый счёт') + `
+  return sheetHead(d.id ? 'Счет' : 'Новый счет') + `
     <label>Название<input value="${esc(d.name)}" placeholder="Например: Зарплатная карта" oninput="App.d('name',this.value)"></label>
     <label>Тип${selField(`<div class="ic">${icon(ACC_ICON[d.type], 18)}</div><span class="grow">${ACC_TYPE_ONE[d.type]}</span>`, 'App.pickAccType()')}</label>
-    <label>Валюта счёта${selField(curInner(d.cur), "App.pickCur('acc')", used)}</label>
-    ${used ? '<div class="hint pad">Валюту нельзя поменять: по счёту уже есть операции.</div>' : ''}
+    <label>Валюта счета${selField(curInner(d.cur), "App.pickCur('acc')", used)}</label>
+    ${used ? '<div class="hint pad">Валюту нельзя поменять: по счету уже есть операции.</div>' : ''}
     <label>Начальный остаток, ${CURS[d.cur].s}<input inputmode="decimal" value="${esc(d.initial)}" placeholder="0" oninput="App.d('initial',this.value)"></label>
-    <div class="hint pad">Сколько денег было на счёте до первой операции в приложении. Дальше баланс на любую дату считается сам.</div>
+    <div class="hint pad">Сколько денег было на счете до первой операции в приложении. Дальше баланс на любую дату считается сам.</div>
     ${d.id ? `<label class="check"><input type="checkbox" ${d.archived ? 'checked' : ''} onchange="App.d('archived',this.checked)"> В архиве — скрыть из списков (например, закрытый вклад)</label>` : ''}
     <button class="btn" onclick="App.saveAcc()">Сохранить</button>
-    ${d.id ? `<button class="btn danger" onclick="App.delAcc()">Удалить счёт</button>` : ''}`;
+    ${d.id ? `<button class="btn danger" onclick="App.delAcc()">Удалить счет</button>` : ''}`;
 }
 function saveAcc() {
   const d = draft;
@@ -1095,8 +1100,8 @@ function saveAcc() {
 }
 async function delAcc() {
   const id = draft.id;
-  if (D.tx.some(t => t.acc === id || t.to === id)) return toast('По счёту есть операции. Отметьте «В архиве», чтобы скрыть его.');
-  if (!await ask('Удалить счёт?')) return;
+  if (D.tx.some(t => t.acc === id || t.to === id)) return toast('По счету есть операции. Отметьте «В архиве», чтобы скрыть его.');
+  if (!await ask('Удалить счет?')) return;
   D.accounts = D.accounts.filter(a => a.id !== id);
   syncColl('accounts', [], [id]); stack.length = 0; showSheet(); render();
 }
@@ -1104,7 +1109,7 @@ async function delAcc() {
 /* ================= Категории ================= */
 function editCat(id, parentId) {
   const c = id ? catById(id) : null;
-  draft = {id:c ? c.id : null, name:c ? c.name : '', icon:c ? (c.icon !== undefined ? c.icon : (NAME_ICON[c.name] || '')) : '', color:c ? catColor(c) : COLORS[D.cats.length % COLORS.length], parent:c ? c.parent || '' : (parentId || ''), type:c ? c.type : (parentId ? catById(parentId).type : ui.catTab)};
+  draft = {id:c ? c.id : null, name:c ? c.name : '', icon:c ? (c.icon !== undefined ? c.icon : (NAME_ICON[noYo(c.name)] || '')) : '', color:c ? catColor(c) : COLORS[D.cats.length % COLORS.length], parent:c ? c.parent || '' : (parentId || ''), type:c ? c.type : (parentId ? catById(parentId).type : ui.catTab)};
   openSheet(catForm);
 }
 function catForm() {
@@ -1167,7 +1172,7 @@ async function copy() {
   catch (e) { el.select(); try { document.execCommand('copy'); toast('Скопировано'); } catch (e2) { toast('Выделите текст и скопируйте вручную'); } }
 }
 function exportCSV() {
-  const rows = [['Дата','Тип','Сумма','Валюта','Сумма в рублях','Счёт','Счёт получатель','Зачислено','Категория','Подкатегория','Название','Заметка','Возврат за']];
+  const rows = [['Дата','Тип','Сумма','Валюта','Сумма в рублях','Счет','Счет получатель','Зачислено','Категория','Подкатегория','Название','Заметка','Возврат за']];
   D.tx.slice().sort((a, b) => a.date.localeCompare(b.date)).forEach(t => {
     const c = catById(t.cat), p = c && c.parent ? catById(c.parent) : null, o = t.ref && txById(t.ref);
     const num = v => v == null ? '' : String(v).replace('.', ',');
