@@ -98,6 +98,16 @@ label textarea{resize:vertical}
 .datefield input{position:absolute!important;inset:0;width:100%!important;height:100%;opacity:0;margin:0!important;padding:0!important;border:0!important;cursor:pointer;-webkit-appearance:none;appearance:none}
 .datebar .mini{padding:10px 12px;background:var(--card)}
 .spark{display:block;width:100%;height:120px}
+.donut{padding:16px 14px}
+.dwrap{position:relative;width:210px;max-width:72%;margin:4px auto 14px}
+.dsvg{display:block;width:100%;height:auto}
+.dc{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;pointer-events:none}
+.dc b{font-size:19px;margin:2px 0}
+.lgs{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px}
+.lg{display:flex;align-items:center;gap:8px;min-width:0;border:0;background:none;color:var(--text);font:inherit;font-size:13.5px;padding:5px 0;text-align:left;cursor:pointer}
+.lg i{width:10px;height:10px;border-radius:3px;flex:none}
+.lg .lgn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lg b{font-weight:600;color:var(--hint);font-size:12.5px}
 .subrow{padding-left:58px}
 .link{color:var(--accent);font-size:14px}
 .bar{height:6px;background:var(--bg);border-radius:3px;margin-top:6px;overflow:hidden}
@@ -660,7 +670,7 @@ function viewAn() {
     const col = catColor(g.cat);
     const hasSubs = g.subs.some(s => s.id !== '_self');
     const open = hasSubs && ui.open[g.id];
-    h += `<div class="row" onclick="${hasSubs ? `App.toggle('${g.id}')` : `App.catTx('${g.id}',true)`}">${catBadge(g.cat)}<div class="mid"><div class="tt">${esc(g.name)} ${hasSubs ? `<span class="hint">${open ? '▾' : '▸'}</span>` : ''}</div><div class="bar"><i style="width:${Math.max(0, Math.min(100, pct))}%;background:${col}"></i></div></div><div class="amt">${signed(g.total)}<div class="hint">${pct.toFixed(1)}%</div></div></div>`;
+    h += `<div class="row" data-g="${g.id}" onclick="${hasSubs ? `App.toggle('${g.id}')` : `App.catTx('${g.id}',true)`}">${catBadge(g.cat)}<div class="mid"><div class="tt">${esc(g.name)} ${hasSubs ? `<span class="hint">${open ? '▾' : '▸'}</span>` : ''}</div><div class="bar"><i style="width:${Math.max(0, Math.min(100, pct))}%;background:${col}"></i></div></div><div class="amt">${signed(g.total)}<div class="hint">${pct.toFixed(1)}%</div></div></div>`;
     if (open) {
       g.subs.forEach(s => {
         const sp = g.total ? s.total / g.total * 100 : 0;
@@ -672,16 +682,39 @@ function viewAn() {
   h += '</div>';
   const months = isM ? Array.from({length:12}, (_, i) => shiftMonth(ui.anMonth, i - 11)) : Array.from({length:12}, (_, i) => `${ui.anMonth.slice(0,4)}-${pad(i+1)}`);
   const data = months.map(m => { const x = analyze(mm => mm === m); return {m, inc:x.totalInc, exp:x.totalExp}; });
-  const max = Math.max(1, ...data.map(d => Math.max(d.inc, d.exp)));
-  h += `<h3>${isM ? 'Последние 12 месяцев' : 'По месяцам'}</h3><div class="card chart">${data.map(d => `<div class="col ${isM && d.m === ui.anMonth ? 'sel' : ''}" onclick="App.pickMonth('${d.m}')"><div class="bars"><i class="bi" style="height:${d.inc / max * 100}%"></i><i class="be" style="height:${Math.max(0, d.exp) / max * 100}%"></i></div><span>${MONTHS_SHORT[+d.m.slice(5) - 1]}</span></div>`).join('')}</div>
-    <div class="legend"><span><i class="bi"></i>Доходы</span><span><i class="be"></i>Расходы</span></div>`;
+  h += donut(groups, ui.anType);
   const rows = data.slice().reverse().filter(d => d.inc || d.exp);
   if (rows.length) {
+    h += `<h3>По месяцам</h3>`;
     h += '<div class="card">' + rows.map(d => `<div class="row" onclick="App.pickMonth('${d.m}')"><div class="mid"><div class="tt">${monthLabel(d.m)}</div><div class="sub"><span class="pos">${money(d.inc, d.inc ? '+' : '')}</span> · <span class="neg">${money(d.exp, d.exp > 0 ? '−' : '')}</span></div></div><div class="amt">${signed(d.inc - d.exp)}</div></div>`).join('');
     const avg = rows.reduce((s, d) => s + d.exp, 0) / rows.length;
     h += `<div class="row"><div class="mid hint">Средний расход в месяц</div><div class="amt">${money(avg)}</div></div></div>`;
   }
   return h;
+}
+
+/* Круговая диаграмма по категориям за выбранный период */
+function donut(groups, type) {
+  const segs = groups.filter(g => g.total > 0);
+  const total = segs.reduce((s, g) => s + g.total, 0);
+  const title = type === 'expense' ? 'Расходы' : 'Доходы';
+  if (!total) return '';
+  const R = 70, C = 2 * Math.PI * R, gap = segs.length > 1 ? 2.5 : 0;
+  let off = 0, arcs = '';
+  segs.forEach(g => {
+    const len = g.total / total * C;
+    const col = g.cat ? catColor(g.cat) : '#5b606b';
+    arcs += `<circle cx="90" cy="90" r="${R}" fill="none" stroke="${col}" stroke-width="22" stroke-dasharray="${Math.max(0.5, len - gap).toFixed(2)} ${C.toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" style="cursor:pointer" onclick="App.slice('${g.id}')"><title>${esc(g.name)}</title></circle>`;
+    off += len;
+  });
+  const legend = segs.map(g => {
+    const col = g.cat ? catColor(g.cat) : '#5b606b';
+    return `<button class="lg" onclick="App.slice('${g.id}')"><i style="background:${col}"></i><span class="lgn">${esc(g.name)}</span><b>${(g.total / total * 100).toFixed(g.total / total < 0.1 ? 1 : 0)}%</b></button>`;
+  }).join('');
+  return `<h3>${title} по категориям — ${periodLabel()}</h3><div class="card pad donut">
+    <div class="dwrap"><svg viewBox="0 0 180 180" class="dsvg"><circle cx="90" cy="90" r="${R}" fill="none" stroke="var(--card2)" stroke-width="22"/><g transform="rotate(-90 90 90)">${arcs}</g></svg>
+      <div class="dc"><span class="hint">${title}</span><b>${money(total)}</b><span class="hint">${segs.length} ${segs.length === 1 ? 'категория' : segs.length < 5 ? 'категории' : 'категорий'}</span></div></div>
+    <div class="lgs">${legend}</div></div>`;
 }
 
 function viewAcc() {
@@ -1165,6 +1198,12 @@ window.App = {
   anShift(k) { ui.anMonth = shiftMonth(ui.anMonth, ui.anPeriod === 'month' ? k : 12 * k); render(); },
   pickMonth(m) { ui.anPeriod = 'month'; ui.anMonth = m; render(); window.scrollTo(0, 0); },
   toggle(id) { ui.open[id] = !ui.open[id]; render(); },
+  slice(id) {
+    const hasSubs = D.cats.some(c => c.parent === id);
+    if (!hasSubs) return App.catTx(id, true);
+    ui.open[id] = true; render();
+    const el = document.querySelector(`[data-g="${id}"]`); if (el) el.scrollIntoView({behavior:'smooth', block:'center'});
+  },
 };
 
 
