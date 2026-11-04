@@ -1,0 +1,964 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Мои финансы</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  color-scheme:dark;
+  --bg:#0d0e12;
+  --card:#16181e;
+  --card2:#1d2027;
+  --text:#e8eaef;
+  --hint:#7b818e;
+  --accent:#8b93ff;
+  --accent-text:#0d0e12;
+  --line:rgba(255,255,255,.06);
+  --red:#ff6b6b;--green:#4fd18b;--orange:#f2a65a;
+}
+html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.35 "Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+body.lock{overflow:hidden}
+#view{padding:12px 12px calc(100px + env(safe-area-inset-bottom));max-width:640px;margin:0 auto}
+.card{background:var(--card);border-radius:14px;margin-bottom:12px;overflow:hidden}
+.pad{padding:10px 14px}
+.hint{color:var(--hint);font-size:13px}
+.pos{color:var(--green)}.neg{color:var(--red)}
+.mnav{display:flex;align-items:center;justify-content:space-between;margin:2px 0 10px}
+.mnav b{font-size:17px}
+.mnav button{border:0;background:var(--card);color:var(--text);width:42px;height:36px;border-radius:10px;font-size:20px;cursor:pointer}
+.summary{display:grid;grid-template-columns:repeat(3,1fr);padding:12px 14px;gap:6px}
+.summary div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.summary b{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.search,label input,label select,label textarea{width:100%;font:inherit;font-size:16px;color:var(--text);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;outline:none}
+.search,label input,label textarea{-webkit-appearance:none;appearance:none}
+input[type=date]{min-height:44px}
+label textarea{resize:vertical}
+.searchbox{position:relative;margin-bottom:10px}
+.searchbox svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--hint);pointer-events:none}
+.search{padding-left:38px!important}
+.i{width:22px;height:22px;display:block}
+.ic{color:var(--hint)}
+.ic.cat{font-weight:600;font-size:14px;border-radius:10px}
+.mnav button svg,.x svg{margin:auto}
+.sw{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
+.sw button{width:30px;height:30px;border-radius:50%;border:2px solid transparent;cursor:pointer}
+.sw button.on{border-color:var(--text)}
+.chips{display:flex;gap:6px;overflow-x:auto;margin-bottom:6px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{border:0;background:var(--card);color:var(--text);padding:7px 12px;border-radius:999px;font:inherit;font-size:14px;white-space:nowrap;cursor:pointer}
+.chip.on{background:var(--accent);color:var(--accent-text)}
+.day{color:var(--hint);font-size:13px;margin:14px 4px 6px}
+.row{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);cursor:pointer}
+.row:last-child{border-bottom:0}
+.ic{width:34px;height:34px;border-radius:50%;background:var(--bg);display:grid;place-items:center;font-size:17px;flex:none}
+.mid{flex:1;min-width:0}
+.tt{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sub{color:var(--hint);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tag{font-size:12px;color:var(--orange);margin-top:2px}
+.note{font-size:12.5px;color:var(--hint);font-style:italic;margin-top:2px;white-space:pre-wrap;word-break:break-word}
+.amt{text-align:right;white-space:nowrap;font-weight:600;font-variant-numeric:tabular-nums}
+.amt .hint{font-weight:400}
+.amt .rub{font-size:12px;font-weight:400;color:var(--hint);margin-top:1px}
+.amtrow{display:flex;gap:8px;align-items:flex-end}
+.amtrow label:first-child{flex:1}
+.amtrow label:last-child{width:120px;flex:none}
+.datebar{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+.datebar input{flex:1;font:inherit;font-size:16px;color:var(--text);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px;min-height:42px}
+.datebar .mini{padding:10px 12px;background:var(--card)}
+.spark{display:block;width:100%;height:120px}
+.subrow{padding-left:58px}
+.link{color:var(--accent);font-size:14px}
+.bar{height:6px;background:var(--bg);border-radius:3px;margin-top:6px;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:3px}
+.seg{display:flex;background:var(--card);border-radius:10px;padding:3px;margin-bottom:10px;gap:3px}
+.seg button{flex:1;border:0;background:transparent;color:var(--text);padding:8px 4px;border-radius:8px;font:inherit;font-size:14px;cursor:pointer}
+.seg button.on{background:var(--accent);color:var(--accent-text)}
+.seg button.on.t-expense{background:var(--red);color:#fff}
+.seg button.on.t-income{background:var(--green);color:#fff}
+.seg button.on.t-refund{background:var(--orange);color:#fff}
+.btn{display:block;width:100%;border:0;border-radius:12px;padding:13px;font:inherit;font-weight:600;background:var(--accent);color:var(--accent-text);margin:12px 0 0;cursor:pointer}
+.btn.sec{background:var(--bg);color:var(--accent)}
+.btn.danger{background:transparent;color:var(--red);margin-top:4px}
+.mini{border:0;background:var(--bg);color:var(--accent);border-radius:8px;padding:5px 8px;font:inherit;font-size:12px;flex:none;cursor:pointer}
+.empty{text-align:center;color:var(--hint);padding:30px 10px}
+.big{padding:16px}.big b{display:block;font-size:26px;margin-top:4px}
+h3{font-size:15px;margin:18px 4px 8px}
+.chart{display:flex;gap:4px;padding:12px 10px 8px;height:170px}
+.col{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;min-width:0}
+.col .bars{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center;gap:2px}
+.bars i{width:40%;max-width:10px;border-radius:3px 3px 0 0;min-height:1px}
+.bi{background:var(--green)}.be{background:var(--red)}
+.col span{font-size:10px;color:var(--hint)}
+.col.sel span{color:var(--text);font-weight:700}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--hint);margin:-4px 4px 12px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+#tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom);z-index:10}
+#tabs button{flex:1;border:0;background:none;color:var(--hint);padding:7px 0 6px;font:inherit;font-size:11px;display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer}
+#tabs button svg{width:22px;height:22px;margin-bottom:2px}
+#tabs button.active{color:var(--accent)}
+
+#fab{position:fixed;right:16px;bottom:calc(72px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-text);display:grid;place-items:center;box-shadow:0 6px 20px rgba(139,147,255,.25);z-index:11;cursor:pointer}
+#sheet{position:fixed;inset:0;z-index:20}
+#sheet.hidden{display:none}
+.backdrop{position:absolute;inset:0;background:rgba(0,0,0,.6)}
+.panel{position:absolute;left:0;right:0;bottom:0;max-height:92vh;overflow-y:auto;background:var(--card);border-radius:16px 16px 0 0;padding:6px 16px calc(20px + env(safe-area-inset-bottom));animation:up .2s ease;max-width:640px;margin:0 auto}
+@keyframes up{from{transform:translateY(30px);opacity:.6}}
+.panel .card,.panel .seg,.panel label input,.panel label select,.panel label textarea{background:var(--card2)}
+.panel .row .ic{background:var(--card)}
+.panel .btn.sec,.panel .x{background:var(--card2)}
+.sh-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;position:sticky;top:-6px;background:var(--card);z-index:1}
+.sh-head b{font-size:17px}
+.x{border:0;background:var(--bg);color:var(--hint);width:32px;height:32px;border-radius:50%;font-size:15px;flex:none;cursor:pointer}
+label{display:block;font-size:13px;color:var(--hint);margin:10px 0 0}
+label>input,label>select,label>textarea{margin-top:4px}
+.amount{font-size:26px!important;font-weight:600}
+.check{display:flex;gap:8px;align-items:center;color:var(--text);font-size:14px}
+.check input{width:auto;-webkit-appearance:checkbox;appearance:auto;margin:0}
+.copy{width:100%;min-height:200px;font:12px/1.4 ui-monospace,Menlo,monospace;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px}
+#toast{position:fixed;left:50%;bottom:calc(140px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#2a2d36;color:var(--text);padding:9px 14px;border-radius:10px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:30;max-width:90%;text-align:center}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+<main id="view"><div class="empty">Загрузка…</div></main>
+<button id="fab" onclick="App.newTx()" aria-label="Добавить операцию"></button>
+<nav id="tabs">
+  <button data-tab="ops">Операции</button>
+  <button data-tab="an">Аналитика</button>
+  <button data-tab="acc">Счета</button>
+  <button data-tab="cats">Категории</button>
+</nav>
+<div id="sheet" class="hidden"><div class="backdrop" onclick="App.back()"></div><div class="panel" id="panel"></div></div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* ================= Утилиты ================= */
+const TG = window.Telegram && window.Telegram.WebApp;
+const IN_TG = !!(TG && TG.initData);
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let _cnt = 0;
+const uid = () => Date.now().toString(36) + (_cnt++ % 1296).toString(36).padStart(2,'0') + Math.random().toString(36).slice(2,5);
+const r2 = n => Math.round((+n || 0) * 100) / 100;
+const pad = n => String(n).padStart(2, '0');
+const dateStr = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const todayStr = () => dateStr(new Date());
+const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+const MONTHS_GEN = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+const MONTHS_SHORT = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+const WD = ['воскресенье','понедельник','вторник','среда','четверг','пятница','суббота'];
+const NF = new Intl.NumberFormat('ru-RU', {minimumFractionDigits:0, maximumFractionDigits:2});
+const CURS = {
+  RUB:{s:'₽', n:'Рубль'}, USD:{s:'$', n:'Доллар США'}, EUR:{s:'€', n:'Евро'}, JPY:{s:'¥', n:'Японская иена'},
+  CNY:{s:'CN¥', n:'Китайский юань'}, THB:{s:'฿', n:'Тайский бат'}, BYN:{s:'Br', n:'Белорусский рубль'},
+};
+const money = (n, sign = '', cur = 'RUB') => sign + NF.format(Math.abs(r2(n))) + ' ' + (CURS[cur] || {s:cur}).s;
+const signed = (n, cur) => money(n, n < 0 ? '−' : '', cur);
+const curOptions = sel => Object.entries(CURS).map(([k, c]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${c.s} ${k} — ${c.n}</option>`).join('');
+const monthLabel = m => MONTHS[+m.slice(5,7)-1] + ' ' + m.slice(0,4);
+const shiftMonth = (m, k) => { let y = +m.slice(0,4), mo = +m.slice(5,7) - 1 + k; y += Math.floor(mo/12); mo = ((mo % 12) + 12) % 12; return `${y}-${pad(mo+1)}`; };
+const dayLabel = d => { const dt = new Date(+d.slice(0,4), +d.slice(5,7)-1, +d.slice(8,10)); const y = dt.getFullYear() !== new Date().getFullYear() ? ' ' + dt.getFullYear() : ''; return `${dt.getDate()} ${MONTHS_GEN[dt.getMonth()]}${y}, ${WD[dt.getDay()]}`; };
+const shortDate = d => `${d.slice(8,10)}.${d.slice(5,7)}.${d.slice(2,4)}`;
+const parseAmount = v => { const n = parseFloat(String(v).replace(/[\s ]/g,'').replace(',', '.')); return isFinite(n) ? n : NaN; };
+
+const TYPES = {expense:'Расход', income:'Доход', transfer:'Перевод', refund:'Возврат'};
+const ACC_TYPES = {card:'Карты', account:'Счета', deposit:'Вклады', cash:'Наличные'};
+const ACC_TYPE_ONE = {card:'Карта', account:'Счёт', deposit:'Вклад', cash:'Наличные'};
+/* Простые линейные иконки (SVG, 24×24, цвет берут от текста) */
+const ICONS = {
+  ops:'<path d="M4 7h16M4 12h10M4 17h13"/>',
+  an:'<path d="M6 20V11M12 20V5M18 20v-6"/>',
+  acc:'<rect x="3" y="6" width="18" height="12" rx="3"/><path d="M3 10.5h18"/>',
+  cats:'<circle cx="7.5" cy="7.5" r="3"/><rect x="13.5" y="4.5" width="6" height="6" rx="1.5"/><rect x="4.5" y="13.5" width="6" height="6" rx="1.5"/><circle cx="16.5" cy="16.5" r="3"/>',
+  search:'<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  x:'<path d="M6 6l12 12M18 6L6 18"/>',
+  left:'<path d="M14.5 6l-6 6 6 6"/>',
+  right:'<path d="M9.5 6l6 6-6 6"/>',
+  transfer:'<path d="M5 9h13l-3.5-3.5M19 15H6l3.5 3.5"/>',
+  refund:'<path d="M9 7L5 11l4 4"/><path d="M5 11h9a5 5 0 010 10h-2"/>',
+  card:'<rect x="3" y="6" width="18" height="12" rx="3"/><path d="M3 10.5h18M7 14.5h4"/>',
+  account:'<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M8 9.5h8M8 14.5h5"/>',
+  deposit:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/>',
+  cash:'<rect x="3" y="6.5" width="18" height="11" rx="2.5"/><circle cx="12" cy="12" r="2.5"/>',
+  none:'<circle cx="12" cy="12" r="7" stroke-dasharray="3 3"/>',
+};
+const icon = (name, size = 22) => `<svg class="i" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ICONS.none}</svg>`;
+const ACC_ICON = {card:'card', account:'account', deposit:'deposit', cash:'cash'};
+const COLORS = ['#8b93ff','#f2a65a','#ff6b8a','#4fd18b','#c08bff','#4cc9d6','#ffd166','#ff8f5a','#6fa8ff','#b5a48b','#e07bd6','#7ed957'];
+
+/* ================= Хранилище =================
+   В Telegram: CloudStorage (облако Telegram, привязано к вашему аккаунту и этому боту).
+   Вне Telegram (тест в браузере): localStorage.
+   Значение в CloudStorage — до 4096 символов, поэтому данные режутся на куски. */
+const Store = (() => {
+  const CH = 3800;
+  const cloud = !!(IN_TG && TG.CloudStorage && TG.isVersionAtLeast && TG.isVersionAtLeast('6.9'));
+  const call = (method, ...args) => new Promise((res, rej) => TG.CloudStorage[method](...args, (err, v) => err ? rej(err) : res(v)));
+  async function getMany(keys) {
+    const out = {};
+    if (!cloud) { keys.forEach(k => out[k] = localStorage.getItem('fin_' + k) || ''); return out; }
+    for (let i = 0; i < keys.length; i += 20) Object.assign(out, await call('getItems', keys.slice(i, i + 20)));
+    return out;
+  }
+  async function set(k, v) { if (!cloud) { localStorage.setItem('fin_' + k, v); return; } await call('setItem', k, v); }
+  async function del(keys) { if (!keys.length) return; if (!cloud) { keys.forEach(k => localStorage.removeItem('fin_' + k)); return; } await call('removeItems', keys); }
+  let meta = {v:1, blobs:{}};
+  async function loadAll() {
+    const m = (await getMany(['meta'])).meta;
+    if (!m) return null;
+    meta = JSON.parse(m);
+    const keys = [];
+    for (const [name, n] of Object.entries(meta.blobs)) for (let i = 0; i < n; i++) keys.push(name + '__' + i);
+    const vals = await getMany(keys);
+    const res = {};
+    for (const [name, n] of Object.entries(meta.blobs)) {
+      let s = ''; for (let i = 0; i < n; i++) s += vals[name + '__' + i] || '';
+      try { res[name] = JSON.parse(s); } catch (e) { console.error('Повреждён блок', name, e); res[name] = null; }
+    }
+    return res;
+  }
+  let queue = Promise.resolve();
+  function save(name, data) {
+    queue = queue.then(async () => {
+      const s = data == null ? '' : JSON.stringify(data);
+      const parts = []; for (let i = 0; i < s.length; i += CH) parts.push(s.slice(i, i + CH));
+      const old = meta.blobs[name] || 0;
+      for (let i = 0; i < parts.length; i++) await set(name + '__' + i, parts[i]);
+      if (parts.length) meta.blobs[name] = parts.length; else delete meta.blobs[name];
+      await set('meta', JSON.stringify(meta));
+      const extra = []; for (let i = parts.length; i < old; i++) extra.push(name + '__' + i);
+      await del(extra);
+    }).catch(e => { console.error(e); toast('Не удалось сохранить: ' + e); });
+    return queue;
+  }
+  return {loadAll, save, cloud};
+})();
+
+/* ================= Курсы валют (ЦБ РФ) =================
+   Источник: cbr-xml-daily.ru — официальные курсы ЦБ в JSON. Кэшируются на устройстве.
+   Для прошедших дат берётся курс на эту дату (в выходные — последний рабочий день). */
+const Rates = (() => {
+  const KEY = 'fin_rates';
+  let cache = {}; try { cache = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) {}
+  const pending = {}, failed = {};
+  const keyOf = date => (!date || date >= todayStr()) ? 'latest' : date;
+  const parse = data => { const m = {_ts:Date.now(), _date:data.Date.slice(0,10)}; for (const c of Object.keys(CURS)) if (c !== 'RUB' && data.Valute[c]) m[c] = data.Valute[c].Value / data.Valute[c].Nominal; return m; };
+  function load(date) {
+    const key = keyOf(date), c = cache[key];
+    if (c && (key !== 'latest' || Date.now() - c._ts < 3 * 3600e3)) return Promise.resolve(c);
+    if (pending[key]) return pending[key];
+    return pending[key] = (async () => {
+      let data = null;
+      if (key === 'latest') { const r = await fetch('https://www.cbr-xml-daily.ru/daily_json.js'); if (r.ok) data = await r.json(); }
+      else {
+        const d = new Date(date + 'T12:00:00');
+        for (let i = 0; i < 10 && !data; i++) {
+          try { const r = await fetch(`https://www.cbr-xml-daily.ru/archive/${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())}/daily_json.js`); if (r.ok) data = await r.json(); } catch (e) {}
+          d.setDate(d.getDate() - 1);
+        }
+      }
+      if (!data) throw new Error('курсы недоступны');
+      cache[key] = parse(data);
+      try { localStorage.setItem(KEY, JSON.stringify(cache)); } catch (e) {}
+      return cache[key];
+    })().catch(e => { failed[key] = true; if (c) return c; throw e; }).finally(() => delete pending[key]);
+  }
+  // Курс: сколько рублей за 1 единицу валюты. null — курс ещё не загружен.
+  const get = (date, cur) => cur === 'RUB' || !cur ? 1 : ((cache[keyOf(date)] || {})[cur] || null);
+  const info = date => cache[keyOf(date)];
+  // Если курса нет — загрузить и потом вызвать cb (один раз, без повторов при ошибке)
+  function need(date, cb) { const key = keyOf(date); if (cache[key] || pending[key] || failed[key]) return; load(date).then(cb, () => cb && cb()); }
+  return {load, get, info, need};
+})();
+
+/* ================= Данные ================= */
+let D = {accounts:[], cats:[], tx:[]};
+const ui = {tab:'ops', month:todayStr().slice(0,7), filter:'all', search:'', anMonth:todayStr().slice(0,7), anPeriod:'month', anType:'expense', open:{}, catTab:'expense', lastAcc:null, accDate:todayStr()};
+let draft = null;
+const stack = [];
+
+function seed() {
+  const E = [
+    ['🛒','Продукты',['Супермаркет','Рынок']],
+    ['🍽','Кафе и рестораны',['Рестораны','Кофе','Доставка еды']],
+    ['🚇','Транспорт',['Общественный транспорт','Такси','Поезда','Авиабилеты','Топливо']],
+    ['🏠','Жильё',['Аренда','Коммунальные услуги','Интернет и связь']],
+    ['💊','Здоровье',['Аптека','Врачи','Спорт']],
+    ['👗','Одежда и обувь',[]],
+    ['💅','Красота',[]],
+    ['🎭','Развлечения',['Кино и театр','Подписки','Хобби']],
+    ['✈️','Путешествия',['Отели','Экскурсии']],
+    ['🎁','Подарки',[]],
+    ['📚','Образование',[]],
+    ['📦','Прочее',[]],
+  ];
+  const I = [
+    ['💼','Зарплата',['Аванс','Основная часть','Премия']],
+    ['💻','Подработка',[]],
+    ['🏦','Проценты и кэшбэк',['Проценты по вкладу','Кэшбэк']],
+    ['🎁','Подарки',[]],
+    ['📦','Прочее',[]],
+  ];
+  const cats = [];
+  let k = 0;
+  const add = (type, list) => list.forEach(([, name, subs]) => {
+    const id = uid(); cats.push({id, type, name, color:COLORS[k++ % COLORS.length]});
+    subs.forEach(s => cats.push({id:uid(), type, name:s, parent:id}));
+  });
+  add('expense', E); add('income', I);
+  D = {accounts:[{id:uid(), name:'Основная карта', type:'card', initial:0}], cats, tx:[]};
+}
+
+const catById = id => D.cats.find(c => c.id === id);
+const accById = id => D.accounts.find(a => a.id === id);
+const txById = id => D.tx.find(t => t.id === id);
+const accName = id => { const a = accById(id); return a ? a.name : '—'; };
+const topOf = c => c && c.parent ? (catById(c.parent) || c) : c;
+const catPath = id => { const c = catById(id); if (!c) return ''; const p = c.parent && catById(c.parent); return p ? `${p.name} › ${c.name}` : c.name; };
+const hashColor = s => { let h = 0; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) | 0; return COLORS[Math.abs(h) % COLORS.length]; };
+const catColor = c => c ? (c.color || hashColor(c.id)) : '#7b818e';
+// Абстрактный значок категории: цветная плашка с первой буквой
+const catBadge = c => c
+  ? `<div class="ic cat" style="background:${catColor(c)}22;color:${catColor(c)}">${esc(c.name.trim().charAt(0).toUpperCase())}</div>`
+  : `<div class="ic">${icon('none', 20)}</div>`;
+const parents = type => D.cats.filter(c => c.type === type && !c.parent);
+const childrenOf = id => D.cats.filter(c => c.parent === id);
+const accCur = id => (accById(id) || {}).cur || 'RUB';
+const curOf = t => t.cur || 'RUB';
+// Сумма операции в рублях (для аналитики) — фиксируется по курсу на дату операции
+const rubOf = t => t.rub ?? t.amount;
+// На сколько операция меняет баланс счёта (в валюте счёта)
+const accAmtOf = t => t.accAmt ?? t.amount;
+// Сколько уже вернули по покупке — в валюте покупки
+const refundedSum = (id, exceptId) => {
+  const o = txById(id); if (!o) return 0;
+  return D.tx.reduce((s, t) => {
+    if (t.type !== 'refund' || t.ref !== id || t.id === exceptId) return s;
+    return s + (curOf(t) === curOf(o) ? t.amount : rubOf(t) * o.amount / rubOf(o));
+  }, 0);
+};
+// Возврат, привязанный к покупке, уменьшает расход в месяце покупки
+const effMonth = t => { if (t.type === 'refund' && t.ref) { const o = txById(t.ref); if (o) return o.date.slice(0,7); } return t.date.slice(0,7); };
+const sortTx = (a, b) => b.date.localeCompare(a.date) || (b.id > a.id ? 1 : -1);
+
+const monthKey = m => 'tx_' + m.replace('-', '_');
+function saveMonths(months) {
+  months.forEach(m => { const list = D.tx.filter(t => t.date.slice(0,7) === m); Store.save(monthKey(m), list.length ? list : null); });
+}
+const saveAccounts = () => Store.save('accounts', D.accounts);
+const saveCats = () => Store.save('cats', D.cats);
+
+// Изменения балансов от одной операции: [[счёт, сумма в валюте счёта], ...]
+function deltas(t) {
+  if (t.type === 'expense') return [[t.acc, -accAmtOf(t)]];
+  if (t.type === 'income' || t.type === 'refund') return [[t.acc, accAmtOf(t)]];
+  if (t.type === 'transfer') return [[t.acc, -t.amount], [t.to, t.amount2 ?? t.amount]];
+  return [];
+}
+// Остатки всех счетов на конец дня upTo (по умолчанию — с учётом всех операций)
+function balances(upTo) {
+  const b = {}; D.accounts.forEach(a => b[a.id] = +a.initial || 0);
+  for (const t of D.tx) if (!upTo || t.date <= upTo) for (const [acc, v] of deltas(t)) b[acc] = (b[acc] || 0) + v;
+  return b;
+}
+// История счёта: [{date, delta, end}] по дням с операциями, по возрастанию
+function accHistory(id) {
+  const days = {};
+  for (const t of D.tx) for (const [acc, v] of deltas(t)) if (acc === id) days[t.date] = (days[t.date] || 0) + v;
+  let run = +(accById(id) || {}).initial || 0;
+  return Object.keys(days).sort().map(date => ({date, delta:days[date], end:(run = r2(run + days[date]))}));
+}
+const balanceOn = (hist, initial, date) => { let v = +initial || 0; for (const h of hist) { if (h.date > date) break; v = h.end; } return v; };
+
+/* ================= Аналитика ================= */
+function analyze(inPeriod) {
+  const exp = {}, inc = {}; let refunds = 0;
+  for (const t of D.tx) {
+    if (t.type === 'expense' && inPeriod(t.date.slice(0,7))) { const k = t.cat || '_none'; exp[k] = (exp[k] || 0) + rubOf(t); }
+    else if (t.type === 'income' && inPeriod(t.date.slice(0,7))) { const k = t.cat || '_none'; inc[k] = (inc[k] || 0) + rubOf(t); }
+    else if (t.type === 'refund' && inPeriod(effMonth(t))) {
+      const o = t.ref && txById(t.ref); const k = t.cat || (o && o.cat) || '_none';
+      exp[k] = (exp[k] || 0) - rubOf(t); refunds += rubOf(t);
+    }
+  }
+  const sum = o => Object.values(o).reduce((a, b) => a + b, 0);
+  return {exp, inc, totalExp:sum(exp), totalInc:sum(inc), refunds};
+}
+function rollup(map) {
+  const g = {};
+  for (const [cid, v] of Object.entries(map)) {
+    const c = catById(cid); const top = c ? topOf(c) : null; const tid = top ? top.id : '_none';
+    if (!g[tid]) g[tid] = {id:tid, cat:top, name: top ? top.name : 'Без категории', total:0, subs:{}};
+    g[tid].total += v;
+    const sid = c && c.parent ? c.id : '_self';
+    g[tid].subs[sid] = (g[tid].subs[sid] || 0) + v;
+  }
+  return Object.values(g)
+    .map(x => ({...x, subs: Object.entries(x.subs).map(([id, total]) => ({id, name: id === '_self' ? 'Без подкатегории' : catById(id).name, total})).filter(s => Math.abs(s.total) > 0.004).sort((a, b) => b.total - a.total)}))
+    .filter(x => Math.abs(x.total) > 0.004).sort((a, b) => b.total - a.total);
+}
+const periodFn = () => ui.anPeriod === 'month' ? (m => m === ui.anMonth) : (m => m.slice(0,4) === ui.anMonth.slice(0,4));
+const periodLabel = () => ui.anPeriod === 'month' ? monthLabel(ui.anMonth) : ui.anMonth.slice(0,4) + ' год';
+
+/* ================= Отрисовка ================= */
+const seg = (key, opts) => `<div class="seg">${opts.map(([v, l]) => `<button class="${ui[key] === v ? 'on' : ''}" onclick="App.set('${key}','${v}')">${l}</button>`).join('')}</div>`;
+const monthNav = (prev, next, label) => `<div class="mnav"><button onclick="${prev}">${icon('left', 20)}</button><b>${label}</b><button onclick="${next}">${icon('right', 20)}</button></div>`;
+const summary = a => { const d = a.totalInc - a.totalExp; return `<div class="card summary"><div><span class="hint">Доходы</span><b class="pos">${money(a.totalInc, a.totalInc ? '+' : '')}</b></div><div><span class="hint">Расходы</span><b class="neg">${money(a.totalExp, a.totalExp > 0 ? '−' : '')}</b></div><div><span class="hint">Итог</span><b>${signed(d)}</b></div></div>`; };
+const sheetHead = title => `<div class="sh-head"><b>${title}</b><button class="x" onclick="App.back()">${icon('x', 16)}</button></div>`;
+
+function render() {
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === ui.tab));
+  $('#fab').style.display = ui.tab === 'cats' ? 'none' : '';
+  $('#view').innerHTML = ({ops:viewOps, an:viewAn, acc:viewAcc, cats:viewCats})[ui.tab]();
+  if (ui.tab === 'ops') renderOpsList();
+}
+
+function txRow(t) {
+  const c = catById(t.cat), cur = curOf(t);
+  let ico, title, sub, amt, small = '', cls = '', extra = '';
+  if (t.type === 'transfer') {
+    ico = `<div class="ic">${icon('transfer', 20)}</div>`; title = t.title || 'Перевод между счетами';
+    sub = `${esc(accName(t.acc))} → ${esc(accName(t.to))}`; amt = money(t.amount, '', cur);
+    if (t.amount2 != null && accCur(t.to) !== cur) small = '→ ' + money(t.amount2, '', accCur(t.to));
+  } else {
+    ico = t.type === 'refund' ? `<div class="ic" style="color:var(--orange)">${icon('refund', 20)}</div>` : catBadge(topOf(c));
+    title = t.title || (c ? c.name : TYPES[t.type]);
+    sub = `${esc(catPath(t.cat) || 'Без категории')} · ${esc(accName(t.acc))}`;
+    const sg = t.type === 'expense' ? '−' : '+';
+    cls = t.type === 'expense' ? 'neg' : 'pos';
+    amt = money(t.amount, sg, cur);
+    if (cur !== 'RUB') small = money(rubOf(t), sg);
+  }
+  if (t.type === 'expense') { const r = refundedSum(t.id); if (r > 0) extra = `<div class="tag">возвращено ${money(r, '', cur)} · чистый расход ${money(t.amount - r, '', cur)}</div>`; }
+  if (t.type === 'refund') { const o = t.ref && txById(t.ref); extra = `<div class="tag">возврат${o ? ` за «${esc(o.title || catPath(o.cat) || 'покупку')}» от ${shortDate(o.date)} (${money(o.amount, '', curOf(o))})` : ''}</div>`; }
+  if (t.note) extra += `<div class="note">${esc(t.note)}</div>`;
+  return `<div class="row" onclick="App.editTx('${t.id}')">${ico}<div class="mid"><div class="tt">${esc(title)}</div><div class="sub">${sub}</div>${extra}</div><div class="amt ${cls}">${amt}${small ? `<div class="rub">${small}</div>` : ''}</div></div>`;
+}
+function groupByDay(list) {
+  let html = '', cur = null;
+  for (const t of list) {
+    if (t.date !== cur) { if (cur) html += '</div>'; cur = t.date; html += `<div class="day">${dayLabel(t.date)}</div><div class="card">`; }
+    html += txRow(t);
+  }
+  return html + (cur ? '</div>' : '');
+}
+
+function viewOps() {
+  const a = analyze(m => m === ui.month);
+  return `${monthNav('App.opsMonth(-1)', 'App.opsMonth(1)', monthLabel(ui.month))}
+    ${summary(a)}
+    <div class="searchbox">${icon('search', 18)}<input class="search" type="search" placeholder="Поиск по названию и заметкам" value="${esc(ui.search)}" oninput="App.search(this.value)"></div>
+    <div class="chips">${[['all','Все'],['expense','Расходы'],['income','Доходы'],['transfer','Переводы'],['refund','Возвраты']].map(([k, l]) => `<button class="chip ${ui.filter === k ? 'on' : ''}" onclick="App.set('filter','${k}')">${l}</button>`).join('')}</div>
+    <div id="opsList"></div>`;
+}
+function renderOpsList() {
+  const q = ui.search.trim().toLowerCase();
+  const list = D.tx.filter(t =>
+    (q ? [t.title, t.note, catPath(t.cat)].join(' ').toLowerCase().includes(q) : t.date.slice(0,7) === ui.month) &&
+    (ui.filter === 'all' || t.type === ui.filter)).sort(sortTx);
+  $('#opsList').innerHTML = (q ? `<div class="hint pad">Поиск по всем месяцам: ${list.length}</div>` : '') +
+    (list.length ? groupByDay(list) : `<div class="empty">${q ? 'Ничего не найдено' : 'В этом месяце операций нет.<br>Нажмите «+», чтобы добавить.'}</div>`);
+}
+
+function viewAn() {
+  const isM = ui.anPeriod === 'month';
+  const a = analyze(periodFn());
+  const groups = rollup(ui.anType === 'expense' ? a.exp : a.inc);
+  const total = ui.anType === 'expense' ? a.totalExp : a.totalInc;
+  let h = seg('anPeriod', [['month','Месяц'],['year','Год']]) +
+    monthNav('App.anShift(-1)', 'App.anShift(1)', periodLabel()) + summary(a) +
+    `<div class="hint" style="margin:-4px 4px 12px">${a.refunds > 0 ? `Учтены возвраты на ${money(a.refunds)}: они уменьшают расходы в месяце покупки. ` : ''}Переводы между своими счетами в доходы и расходы не входят.</div>` +
+    seg('anType', [['expense','Расходы по категориям'],['income','Доходы по категориям']]) + '<div class="card">';
+  if (!groups.length) h += '<div class="empty">Нет операций за этот период</div>';
+  groups.forEach((g, i) => {
+    const pct = total > 0 ? g.total / total * 100 : 0;
+    const col = catColor(g.cat);
+    const hasSubs = g.subs.some(s => s.id !== '_self');
+    const open = hasSubs && ui.open[g.id];
+    h += `<div class="row" onclick="${hasSubs ? `App.toggle('${g.id}')` : `App.catTx('${g.id}',true)`}">${catBadge(g.cat)}<div class="mid"><div class="tt">${esc(g.name)} ${hasSubs ? `<span class="hint">${open ? '▾' : '▸'}</span>` : ''}</div><div class="bar"><i style="width:${Math.max(0, Math.min(100, pct))}%;background:${col}"></i></div></div><div class="amt">${signed(g.total)}<div class="hint">${pct.toFixed(1)}%</div></div></div>`;
+    if (open) {
+      g.subs.forEach(s => {
+        const sp = g.total ? s.total / g.total * 100 : 0;
+        h += `<div class="row subrow" onclick="App.catTx('${s.id === '_self' ? g.id : s.id}',false)"><div class="mid"><div class="tt">${esc(s.name)}</div><div class="bar"><i style="width:${Math.max(0, Math.min(100, sp))}%;background:${col};opacity:.6"></i></div></div><div class="amt">${signed(s.total)}<div class="hint">${sp.toFixed(0)}%</div></div></div>`;
+      });
+      h += `<div class="row subrow link" onclick="App.catTx('${g.id}',true)">Все операции категории →</div>`;
+    }
+  });
+  h += '</div>';
+  const months = isM ? Array.from({length:12}, (_, i) => shiftMonth(ui.anMonth, i - 11)) : Array.from({length:12}, (_, i) => `${ui.anMonth.slice(0,4)}-${pad(i+1)}`);
+  const data = months.map(m => { const x = analyze(mm => mm === m); return {m, inc:x.totalInc, exp:x.totalExp}; });
+  const max = Math.max(1, ...data.map(d => Math.max(d.inc, d.exp)));
+  h += `<h3>${isM ? 'Последние 12 месяцев' : 'По месяцам'}</h3><div class="card chart">${data.map(d => `<div class="col ${isM && d.m === ui.anMonth ? 'sel' : ''}" onclick="App.pickMonth('${d.m}')"><div class="bars"><i class="bi" style="height:${d.inc / max * 100}%"></i><i class="be" style="height:${Math.max(0, d.exp) / max * 100}%"></i></div><span>${MONTHS_SHORT[+d.m.slice(5) - 1]}</span></div>`).join('')}</div>
+    <div class="legend"><span><i class="bi"></i>Доходы</span><span><i class="be"></i>Расходы</span></div>`;
+  const rows = data.slice().reverse().filter(d => d.inc || d.exp);
+  if (rows.length) {
+    h += '<div class="card">' + rows.map(d => `<div class="row" onclick="App.pickMonth('${d.m}')"><div class="mid"><div class="tt">${monthLabel(d.m)}</div><div class="sub"><span class="pos">${money(d.inc, d.inc ? '+' : '')}</span> · <span class="neg">${money(d.exp, d.exp > 0 ? '−' : '')}</span></div></div><div class="amt">${signed(d.inc - d.exp)}</div></div>`).join('');
+    const avg = rows.reduce((s, d) => s + d.exp, 0) / rows.length;
+    h += `<div class="row"><div class="mid hint">Средний расход в месяц</div><div class="amt">${money(avg)}</div></div></div>`;
+  }
+  return h;
+}
+
+function viewAcc() {
+  const date = ui.accDate, isToday = date >= todayStr();
+  const b = balances(date);
+  const act = D.accounts.filter(a => !a.archived), arch = D.accounts.filter(a => a.archived);
+  let missing = false;
+  const total = act.reduce((s, a) => { const r = Rates.get(date, a.cur || 'RUB'); if (!r) { missing = true; return s; } return s + b[a.id] * r; }, 0);
+  if (missing) Rates.need(date, () => { if (ui.tab === 'acc') render(); });
+  const hasFx = act.some(a => (a.cur || 'RUB') !== 'RUB');
+  const row = a => {
+    const c = a.cur || 'RUB', r = Rates.get(date, c);
+    return `<div class="row" onclick="App.accView('${a.id}')"><div class="ic">${icon(ACC_ICON[a.type] || 'card', 20)}</div><div class="mid"><div class="tt">${esc(a.name)}</div>${c !== 'RUB' ? `<div class="sub">${CURS[c].n}</div>` : ''}</div><div class="amt ${b[a.id] < 0 ? 'neg' : ''}">${signed(b[a.id], c)}${c !== 'RUB' && r ? `<div class="rub">≈ ${signed(b[a.id] * r)}</div>` : ''}</div></div>`;
+  };
+  let h = `<div class="datebar"><span class="hint">Остатки на</span><input type="date" value="${date}" onchange="App.accDate(this.value)">${!isToday ? `<button class="mini" onclick="App.accDate('')">Сегодня</button>` : ''}</div>
+    <div class="card big"><span class="hint">${isToday ? 'Всего на счетах сейчас' : 'Всего на конец дня ' + dayLabel(date)}</span><b>${missing ? '…' : signed(total)}</b>${hasFx ? `<div class="hint">Валюта пересчитана в рубли по курсу ЦБ${isToday ? '' : ' на эту дату'}</div>` : ''}</div>`;
+  for (const [type, label] of Object.entries(ACC_TYPES)) {
+    const list = act.filter(a => a.type === type);
+    if (list.length) h += `<div class="day">${label}</div><div class="card">${list.map(row).join('')}</div>`;
+  }
+  h += `<div class="hint" style="margin:-4px 4px 0">Нажмите на счёт, чтобы увидеть остаток по дням.</div>
+    <button class="btn" onclick="App.editAcc()">+ Добавить карту, счёт или вклад</button>`;
+  if (arch.length) h += `<div class="day">В архиве</div><div class="card">${arch.map(row).join('')}</div>`;
+  h += `<div class="day">Данные</div><div class="card pad">
+    <div class="hint">${Store.cloud ? 'Данные хранятся в облаке Telegram и доступны на всех ваших устройствах. Их видите только вы.' : 'Тестовый режим: приложение открыто не из Telegram, данные хранятся только в этом браузере.'}</div>
+    <button class="btn sec" onclick="App.exportCSV()">Выгрузить операции (CSV)</button>
+    <button class="btn sec" onclick="App.backup()">Резервная копия</button>
+    <button class="btn sec" onclick="App.restore()">Восстановить из копии</button>
+  </div>`;
+  return h;
+}
+
+/* История счёта: остаток на любую дату, график и операции по дням */
+function spark(vals, days) {
+  const w = 300, hgt = 110, p = 6, min = Math.min(...vals, 0), max = Math.max(...vals, 0), rng = (max - min) || 1;
+  const x = i => p + i * (w - 2 * p) / (vals.length - 1), y = v => p + (max - v) * (hgt - 2 * p) / rng;
+  const pts = vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const zero = min < 0 ? `<line x1="0" x2="${w}" y1="${y(0)}" y2="${y(0)}" stroke="var(--hint)" stroke-dasharray="3 3"/>` : '';
+  return `<svg class="spark" viewBox="0 0 ${w} ${hgt}" preserveAspectRatio="none">${zero}<polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>
+    <div class="legend" style="justify-content:space-between;margin:4px 0 0"><span>${shortDate(days[0])}</span><span>${shortDate(days[days.length - 1])}</span></div>`;
+}
+function accView(id) {
+  openSheet(() => {
+    const a = accById(id); if (!a) return sheetHead('Счёт') + '<div class="empty">Счёт удалён</div>';
+    const c = a.cur || 'RUB', date = ui.accDate, hist = accHistory(id);
+    const bal = balanceOn(hist, a.initial, date);
+    const days = []; for (let i = 59; i >= 0; i--) { const dt = new Date(date + 'T12:00:00'); dt.setDate(dt.getDate() - i); days.push(dateStr(dt)); }
+    const vals = days.map(d => balanceOn(hist, a.initial, d));
+    const r = Rates.get(date, c);
+    let h = sheetHead(esc(a.name)) +
+      `<div class="datebar"><span class="hint">Остаток на</span><input type="date" value="${date}" onchange="App.histDate(this.value)">${date < todayStr() ? `<button class="mini" onclick="App.histDate('')">Сегодня</button>` : ''}</div>
+      <div class="card big"><span class="hint">На конец дня ${dayLabel(date)}</span><b>${signed(bal, c)}</b>${c !== 'RUB' && r ? `<div class="hint">≈ ${signed(bal * r)} по курсу ЦБ</div>` : ''}</div>
+      <div class="card pad"><div class="hint">Остаток за 60 дней</div>${spark(vals, days)}</div>
+      <button class="btn sec" onclick="App.editAcc('${id}')">Изменить счёт</button>`;
+    const shown = hist.filter(x => x.date <= date).reverse().slice(0, 120);
+    if (!shown.length) h += `<div class="empty">До этой даты операций по счёту нет</div>`;
+    for (const day of shown) {
+      const list = D.tx.filter(t => t.date === day.date && (t.acc === id || t.to === id)).sort(sortTx);
+      h += `<div class="day">${dayLabel(day.date)} · остаток <b style="color:var(--text)">${signed(day.end, c)}</b></div><div class="card">${list.map(txRow).join('')}</div>`;
+    }
+    h += `<div class="hint pad">Начальный остаток: ${signed(+a.initial || 0, c)}</div>`;
+    return h;
+  });
+}
+
+function viewCats() {
+  let h = seg('catTab', [['expense','Расходы'],['income','Доходы']]) + '<div class="card">';
+  const ps = parents(ui.catTab);
+  if (!ps.length) h += '<div class="empty">Категорий пока нет</div>';
+  ps.forEach(p => {
+    h += `<div class="row" onclick="App.editCat('${p.id}')">${catBadge(p)}<div class="mid"><div class="tt">${esc(p.name)}</div></div><button class="mini" onclick="event.stopPropagation();App.editCat(null,'${p.id}')">+ подкатегория</button></div>`;
+    childrenOf(p.id).forEach(c => { h += `<div class="row subrow" onclick="App.editCat('${c.id}')"><div class="mid"><div class="tt">${esc(c.name)}</div></div></div>`; });
+  });
+  return h + `</div><button class="btn" onclick="App.editCat()">+ Новая категория</button>`;
+}
+
+/* ================= Шторка (модальное окно) ================= */
+function openSheet(fn) { stack.push(fn); showSheet(); }
+function showSheet() {
+  const fn = stack[stack.length - 1];
+  const bb = TG && TG.BackButton;
+  if (!fn) { $('#sheet').classList.add('hidden'); document.body.classList.remove('lock'); try { IN_TG && bb.hide(); } catch (e) {} return; }
+  $('#panel').innerHTML = fn();
+  $('#sheet').classList.remove('hidden'); document.body.classList.add('lock');
+  try { IN_TG && bb.show(); } catch (e) {}
+}
+function back() { stack.pop(); showSheet(); }
+
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2200); }
+function haptic(type) { try { IN_TG && TG.HapticFeedback.notificationOccurred(type); } catch (e) {} }
+function ask(msg) {
+  return new Promise(res => {
+    try { if (IN_TG && TG.isVersionAtLeast('6.2')) return TG.showConfirm(msg, ok => res(!!ok)); } catch (e) {}
+    res(window.confirm(msg));
+  });
+}
+
+/* ================= Операция ================= */
+function accOptions(sel) { return D.accounts.filter(a => !a.archived || a.id === sel).map(a => `<option value="${a.id}" ${a.id === sel ? 'selected' : ''}>${esc(a.name)}</option>`).join(''); }
+function catOptions(type, sel) {
+  let h = `<option value="">— Без категории —</option>`;
+  parents(type).forEach(p => {
+    h += `<optgroup label="${esc(p.name)}"><option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${esc(p.name)} — общее</option>`;
+    childrenOf(p.id).forEach(c => h += `<option value="${c.id}" ${c.id === sel ? 'selected' : ''}>${esc(c.name)}</option>`);
+    h += '</optgroup>';
+  });
+  return h;
+}
+function defaultAcc() {
+  const last = ui.lastAcc && accById(ui.lastAcc);
+  return last && !last.archived ? last.id : (D.accounts.find(a => !a.archived) || {}).id;
+}
+function newTx() {
+  const acc = defaultAcc();
+  if (!acc) { toast('Сначала добавьте счёт'); ui.tab = 'acc'; render(); return; }
+  draft = {type:'expense', amount:'', cur:accCur(acc), curTouched:false, rub:'', rubManual:false, amount2:'', a2Manual:false,
+    date:todayStr(), acc, to:'', cat:'', title:'', note:'', ref:''};
+  openSheet(txForm); prepRates();
+  setTimeout(() => { const i = $('#f_amount'); i && i.focus(); }, 250);
+}
+function editTx(id) {
+  const t = txById(id); if (!t) return;
+  draft = {...t, amount:String(t.amount), cur:curOf(t), curTouched:true,
+    rub:t.rub != null ? String(t.rub) : '', rubManual:t.rub != null,
+    amount2:t.amount2 != null ? String(t.amount2) : '', a2Manual:t.amount2 != null,
+    to:t.to || '', cat:t.cat || '', title:t.title || '', note:t.note || '', ref:t.ref || ''};
+  openSheet(txForm); prepRates();
+}
+// Валюты, для которых в форме нужен курс
+const formCurs = () => {
+  const d = draft, s = new Set([accCur(d.acc)]);
+  if (d.type === 'transfer') { if (d.to) s.add(accCur(d.to)); } else s.add(d.cur);
+  s.delete('RUB'); return [...s];
+};
+function prepRates() {
+  const curs = formCurs();
+  if (!curs.length || curs.every(c => Rates.get(draft.date, c))) return recalc();
+  const h = $('#rateHint'); if (h) h.textContent = 'Загружаю курс ЦБ…';
+  const d0 = draft;
+  Rates.load(draft.date).then(() => { if (draft === d0) recalc(); }, () => { if (draft === d0) recalc(); });
+}
+function rateHint() {
+  const d = draft, info = Rates.info(d.date), when = info ? ` на ${shortDate(info._date)}` : '';
+  const line = c => { const r = Rates.get(d.date, c); return r ? `1 ${c} = ${NF.format(r2(r * 10000) / 10000)} ₽` : null; };
+  const curs = formCurs();
+  if (!curs.length) return '';
+  const parts = curs.map(line);
+  if (parts.some(p => !p)) return 'Курс ЦБ не загрузился — введите сумму вручную.';
+  let s = `Курс ЦБ${when}: ${parts.join(', ')}.`;
+  if (d.type !== 'transfer' && accCur(d.acc) !== d.cur && accCur(d.acc) !== 'RUB') s += ` Со счёта в ${accCur(d.acc)} спишется по этому курсу.`;
+  return s + ' Можно исправить сумму вручную, если банк посчитал иначе.';
+}
+function recalc() {
+  const d = draft; if (!d) return;
+  const amt = parseAmount(d.amount);
+  if (d.type !== 'transfer' && d.cur !== 'RUB' && !d.rubManual) {
+    const r = Rates.get(d.date, d.cur);
+    d.rub = r && amt > 0 ? String(r2(amt * r)) : '';
+    const el = $('#f_rub'); if (el) el.value = d.rub;
+  }
+  if (d.type === 'transfer' && d.to && accCur(d.to) !== accCur(d.acc) && !d.a2Manual) {
+    const ra = Rates.get(d.date, accCur(d.acc)), rb = Rates.get(d.date, accCur(d.to));
+    d.amount2 = ra && rb && amt > 0 ? String(r2(amt * ra / rb)) : '';
+    const el = $('#f_amt2'); if (el) el.value = d.amount2;
+  }
+  const h = $('#rateHint'); if (h) h.textContent = rateHint();
+}
+function txForm() {
+  const d = draft, isT = d.type === 'transfer', isR = d.type === 'refund';
+  const sym = c => CURS[c].s;
+  let h = sheetHead(d.id ? 'Редактирование' : 'Новая операция') +
+    `<div class="seg">${Object.entries(TYPES).map(([k, l]) => `<button class="${d.type === k ? 'on t-' + k : ''}" onclick="App.dtype('${k}')">${l}</button>`).join('')}</div>`;
+  if (isT) {
+    h += `<label>Сумма перевода, ${sym(accCur(d.acc))}<input id="f_amount" class="amount" inputmode="decimal" placeholder="0" value="${esc(d.amount)}" oninput="App.amt(this.value)"></label>`;
+  } else {
+    h += `<div class="amtrow"><label>${isR ? 'Сумма возврата' : 'Сумма'}<input id="f_amount" class="amount" inputmode="decimal" placeholder="0" value="${esc(d.amount)}" oninput="App.amt(this.value)"></label>
+      <label>Валюта<select onchange="App.df('cur',this.value)">${Object.entries(CURS).map(([k, c]) => `<option value="${k}" ${k === d.cur ? 'selected' : ''}>${c.s} ${k}</option>`).join('')}</select></label></div>`;
+    if (d.cur !== 'RUB') {
+      h += `<label>${accCur(d.acc) === 'RUB' ? 'В рублях — столько спишется / зачислится на счёт' : 'В рублях (для аналитики)'}<input id="f_rub" inputmode="decimal" placeholder="0" value="${esc(d.rub)}" oninput="App.rubIn(this.value)"></label>`;
+    }
+  }
+  if (!isT && formCurs().length) h += `<div class="hint pad" id="rateHint">${rateHint()}</div>`;
+  if (isR) {
+    const exps = D.tx.filter(t => t.type === 'expense').sort(sortTx).slice(0, 300);
+    h += `<label>Какую покупку вернули<select onchange="App.pickRef(this.value)"><option value="">— не привязывать —</option>${exps.map(t => `<option value="${t.id}" ${t.id === d.ref ? 'selected' : ''}>${shortDate(t.date)} · ${esc(t.title || catPath(t.cat) || 'Без названия')} · ${money(t.amount, '', curOf(t))}</option>`).join('')}</select></label>`;
+    const o = d.ref && txById(d.ref);
+    h += o
+      ? `<div class="hint pad">Покупка: ${money(o.amount, '', curOf(o))}${refundedSum(o.id, d.id) ? ` · уже возвращено ${money(refundedSum(o.id, d.id), '', curOf(o))}` : ''}. Укажите сумму, которую вам фактически вернули, — разница останется расходом.</div>`
+      : `<div class="hint pad">Привяжите покупку, чтобы возврат уменьшил расход в той же категории и в месяце покупки. Сумма возврата может быть меньше суммы покупки.</div>`;
+  }
+  h += `<label>Дата<input type="date" value="${esc(d.date)}" onchange="App.df('date',this.value)"></label>`;
+  if (isT) {
+    h += `<label>Откуда<select onchange="App.df('acc',this.value)">${accOptions(d.acc)}</select></label>
+      <label>Куда<select onchange="App.df('to',this.value)"><option value="">— выберите счёт —</option>${accOptions(d.to)}</select></label>`;
+    if (d.to && accCur(d.to) !== accCur(d.acc)) {
+      h += `<label>Зачислено на «${esc(accName(d.to))}», ${sym(accCur(d.to))}<input id="f_amt2" inputmode="decimal" placeholder="0" value="${esc(d.amount2)}" oninput="App.a2In(this.value)"></label>
+        <div class="hint pad" id="rateHint">${rateHint()}</div>`;
+    }
+  } else {
+    h += `<label>${d.type === 'expense' ? 'Счёт списания' : 'Счёт зачисления'}<select onchange="App.df('acc',this.value)">${accOptions(d.acc)}</select></label>
+      <label>Категория<select onchange="App.d('cat',this.value)">${catOptions(d.type === 'income' ? 'income' : 'expense', d.cat)}</select></label>`;
+  }
+  h += `<label>Название<input placeholder="${isT ? 'Например: пополнение вклада' : isR ? 'Например: возврат билетов' : 'Например: билеты в Казань'}" value="${esc(d.title)}" oninput="App.d('title',this.value)"></label>
+    <label>Заметка<textarea rows="2" placeholder="Необязательно" oninput="App.d('note',this.value)">${esc(d.note)}</textarea></label>
+    <button class="btn" onclick="App.saveTx()">Сохранить</button>
+    ${d.id ? `<button class="btn danger" onclick="App.delTx()">Удалить операцию</button>` : ''}`;
+  return h;
+}
+// Изменение поля, от которого зависит вид формы или курс
+function df(k, v) {
+  const d = draft; d[k] = v;
+  if (k === 'cur') d.curTouched = true;
+  if (k === 'acc' && (!d.curTouched || d.type === 'transfer')) d.cur = accCur(v);
+  if (k === 'date' || k === 'cur' || k === 'acc' || k === 'to') { d.rubManual = false; d.a2Manual = false; }
+  showSheet(); prepRates();
+}
+function dtype(k) {
+  draft.type = k;
+  const c = catById(draft.cat), need = k === 'income' ? 'income' : 'expense';
+  if (c && c.type !== need) draft.cat = '';
+  if (k !== 'refund') draft.ref = '';
+  if (k === 'transfer') draft.cur = accCur(draft.acc);
+  showSheet(); prepRates();
+}
+function pickRef(id) {
+  draft.ref = id;
+  const o = txById(id);
+  if (o) {
+    draft.cat = o.cat || '';
+    if (accById(o.acc)) draft.acc = o.acc;
+    draft.cur = curOf(o); draft.curTouched = true; draft.rubManual = false;
+    if (!draft.title) draft.title = 'Возврат: ' + (o.title || catPath(o.cat) || 'покупка');
+    if (!draft.amount) draft.amount = String(r2(o.amount - refundedSum(o.id, draft.id)));
+  }
+  showSheet(); prepRates();
+}
+function saveTx() {
+  const d = draft, amount = parseAmount(d.amount);
+  if (!(amount > 0)) return toast('Введите сумму больше нуля');
+  if (!d.date) return toast('Укажите дату');
+  if (!accById(d.acc)) return toast('Выберите счёт');
+  if (d.type === 'transfer' && (!accById(d.to) || d.to === d.acc)) return toast('Выберите другой счёт, куда переводите');
+  const aCur = accCur(d.acc);
+  const t = {id:d.id || uid(), type:d.type, date:d.date, amount:r2(amount), acc:d.acc};
+  if (d.type === 'transfer') {
+    t.to = d.to;
+    if (aCur !== 'RUB') t.cur = aCur;
+    if (accCur(d.to) !== aCur) {
+      const a2 = parseAmount(d.amount2);
+      if (!(a2 > 0)) return toast(`Укажите, сколько зачислено на «${accName(d.to)}»`);
+      t.amount2 = r2(a2);
+    }
+  } else {
+    if (d.cat) t.cat = d.cat;
+    const cur = d.cur || 'RUB';
+    let rub = amount;
+    if (cur !== 'RUB') {
+      rub = parseAmount(d.rub);
+      if (!(rub > 0)) { const r = Rates.get(d.date, cur); if (!r) return toast('Нет курса — укажите сумму в рублях'); rub = amount * r; }
+      t.cur = cur; t.rub = r2(rub);
+    }
+    if (aCur !== cur) {
+      if (aCur === 'RUB') t.accAmt = r2(rub);
+      else { const ra = Rates.get(d.date, aCur); if (!ra) return toast('Нет курса для валюты счёта — попробуйте позже'); t.accAmt = r2(rub / ra); }
+    }
+    if (d.type === 'refund' && d.ref) t.ref = d.ref;
+  }
+  if (d.title.trim()) t.title = d.title.trim();
+  if (d.note.trim()) t.note = d.note.trim();
+  const months = new Set([t.date.slice(0,7)]);
+  const i = D.tx.findIndex(x => x.id === t.id);
+  if (i >= 0) { months.add(D.tx[i].date.slice(0,7)); D.tx[i] = t; } else D.tx.push(t);
+  ui.lastAcc = t.acc;
+  if (!d.id && ui.tab === 'ops' && !ui.search) ui.month = t.date.slice(0,7);
+  saveMonths(months); haptic('success'); toast('Сохранено');
+  back(); render();
+}
+async function delTx() {
+  const t = txById(draft.id); if (!t) return back();
+  const r = t.type === 'expense' ? refundedSum(t.id) : 0;
+  if (!await ask(r ? 'Удалить покупку? Привязанные к ней возвраты останутся, но будут считаться отдельно.' : 'Удалить операцию?')) return;
+  D.tx = D.tx.filter(x => x.id !== t.id);
+  saveMonths([t.date.slice(0,7)]); haptic('warning');
+  back(); render();
+}
+
+/* ================= Счета ================= */
+function editAcc(id) {
+  const a = id ? accById(id) : null;
+  draft = {id:a ? a.id : null, name:a ? a.name : '', type:a ? a.type : 'card', cur:a ? a.cur || 'RUB' : 'RUB', initial:a ? String(a.initial || 0) : '', archived:!!(a && a.archived)};
+  openSheet(accForm);
+}
+function accForm() {
+  const d = draft, used = d.id && D.tx.some(t => t.acc === d.id || t.to === d.id);
+  return sheetHead(d.id ? 'Счёт' : 'Новый счёт') + `
+    <label>Название<input value="${esc(d.name)}" placeholder="Например: Зарплатная карта" oninput="App.d('name',this.value)"></label>
+    <label>Тип<select onchange="App.d('type',this.value)">${Object.entries(ACC_TYPE_ONE).map(([k, l]) => `<option value="${k}" ${d.type === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    <label>Валюта счёта<select ${used ? 'disabled' : ''} onchange="App.dr('cur',this.value)">${curOptions(d.cur)}</select></label>
+    ${used ? '<div class="hint pad">Валюту нельзя поменять: по счёту уже есть операции.</div>' : ''}
+    <label>Начальный остаток, ${CURS[d.cur].s}<input inputmode="decimal" value="${esc(d.initial)}" placeholder="0" oninput="App.d('initial',this.value)"></label>
+    <div class="hint pad">Сколько денег было на счёте до первой операции в приложении. Дальше баланс на любую дату считается сам.</div>
+    ${d.id ? `<label class="check"><input type="checkbox" ${d.archived ? 'checked' : ''} onchange="App.d('archived',this.checked)"> В архиве — скрыть из списков (например, закрытый вклад)</label>` : ''}
+    <button class="btn" onclick="App.saveAcc()">Сохранить</button>
+    ${d.id ? `<button class="btn danger" onclick="App.delAcc()">Удалить счёт</button>` : ''}`;
+}
+function saveAcc() {
+  const d = draft;
+  if (!d.name.trim()) return toast('Введите название');
+  const init = d.initial === '' ? 0 : parseAmount(d.initial);
+  if (isNaN(init)) return toast('Проверьте начальный остаток');
+  const a = {id:d.id || uid(), name:d.name.trim(), type:d.type, initial:r2(init)};
+  if (d.cur && d.cur !== 'RUB') a.cur = d.cur;
+  if (d.archived) a.archived = true;
+  const i = D.accounts.findIndex(x => x.id === a.id);
+  if (i >= 0) D.accounts[i] = a; else D.accounts.push(a);
+  saveAccounts(); haptic('success'); back(); render();
+}
+async function delAcc() {
+  const id = draft.id;
+  if (D.tx.some(t => t.acc === id || t.to === id)) return toast('По счёту есть операции. Отметьте «В архиве», чтобы скрыть его.');
+  if (!await ask('Удалить счёт?')) return;
+  D.accounts = D.accounts.filter(a => a.id !== id);
+  saveAccounts(); stack.length = 0; showSheet(); render();
+}
+
+/* ================= Категории ================= */
+function editCat(id, parentId) {
+  const c = id ? catById(id) : null;
+  draft = {id:c ? c.id : null, name:c ? c.name : '', color:c ? catColor(c) : COLORS[D.cats.length % COLORS.length], parent:c ? c.parent || '' : (parentId || ''), type:c ? c.type : (parentId ? catById(parentId).type : ui.catTab)};
+  openSheet(catForm);
+}
+function catForm() {
+  const d = draft, hasKids = d.id && childrenOf(d.id).length;
+  return sheetHead(d.id ? 'Категория' : (d.parent ? 'Новая подкатегория' : 'Новая категория')) + `
+    <div class="hint">${d.type === 'income' ? 'Категория доходов' : 'Категория расходов'}</div>
+    <label>Название<input value="${esc(d.name)}" oninput="App.d('name',this.value)"></label>
+    ${!d.parent ? `<label>Цвет<div class="sw">${COLORS.map(c => `<button style="background:${c}" class="${c === d.color ? 'on' : ''}" onclick="App.dr('color','${c}')"></button>`).join('')}</div></label>` : ''}
+    ${hasKids ? '' : `<label>Входит в категорию<select onchange="App.dr('parent',this.value)"><option value="">— нет, это основная категория —</option>${parents(d.type).filter(p => p.id !== d.id).map(p => `<option value="${p.id}" ${p.id === d.parent ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>`}
+    <button class="btn" onclick="App.saveCat()">Сохранить</button>
+    ${d.id ? `<button class="btn danger" onclick="App.delCat()">Удалить</button>` : ''}`;
+}
+function saveCat() {
+  const d = draft;
+  if (!d.name.trim()) return toast('Введите название');
+  const c = {id:d.id || uid(), type:d.type, name:d.name.trim()};
+  if (d.parent) c.parent = d.parent; else c.color = d.color;
+  const i = D.cats.findIndex(x => x.id === c.id);
+  if (i >= 0) D.cats[i] = c; else D.cats.push(c);
+  saveCats(); haptic('success'); back(); render();
+}
+async function delCat() {
+  const c = catById(draft.id); if (!c) return back();
+  if (childrenOf(c.id).length) return toast('Сначала удалите или перенесите подкатегории');
+  const used = D.tx.filter(t => t.cat === c.id);
+  const target = c.parent ? `«${catById(c.parent).name}»` : '«Без категории»';
+  if (!await ask(`Удалить «${c.name}»?` + (used.length ? ` ${used.length} операц. перейдут в ${target}.` : ''))) return;
+  const months = new Set();
+  used.forEach(t => { if (c.parent) t.cat = c.parent; else delete t.cat; months.add(t.date.slice(0,7)); });
+  D.cats = D.cats.filter(x => x.id !== c.id);
+  saveCats(); saveMonths(months); back(); render();
+}
+
+/* Операции категории за период (из аналитики) */
+function catTx(id, tree) {
+  openSheet(() => {
+    const per = periodFn();
+    const ids = new Set(tree ? [id, ...childrenOf(id).map(c => c.id)] : [id]);
+    const catOf = t => { const o = t.type === 'refund' && t.ref && txById(t.ref); return t.cat || (o && o.cat) || '_none'; };
+    const list = D.tx.filter(t => ui.anType === 'expense'
+        ? ((t.type === 'expense' && per(t.date.slice(0,7))) || (t.type === 'refund' && per(effMonth(t))))
+        : (t.type === 'income' && per(t.date.slice(0,7))))
+      .filter(t => ids.has(catOf(t))).sort(sortTx);
+    const name = id === '_none' ? 'Без категории' : (catPath(id) + (!tree && childrenOf(id).length ? ' — общее' : ''));
+    return sheetHead(esc(name)) + `<div class="hint">${periodLabel()}</div>` + (list.length ? groupByDay(list) : '<div class="empty">Нет операций</div>');
+  });
+}
+
+/* ================= Экспорт и копии ================= */
+function showText(title, text, hint) {
+  openSheet(() => sheetHead(title) + `<div class="hint" style="margin-bottom:8px">${hint}</div><textarea id="copyArea" class="copy" readonly>${esc(text)}</textarea><button class="btn" onclick="App.copy()">Скопировать</button>`);
+}
+async function copy() {
+  const el = $('#copyArea');
+  try { await navigator.clipboard.writeText(el.value); toast('Скопировано'); }
+  catch (e) { el.select(); try { document.execCommand('copy'); toast('Скопировано'); } catch (e2) { toast('Выделите текст и скопируйте вручную'); } }
+}
+function exportCSV() {
+  const rows = [['Дата','Тип','Сумма','Валюта','Сумма в рублях','Счёт','Счёт получатель','Зачислено','Категория','Подкатегория','Название','Заметка','Возврат за']];
+  D.tx.slice().sort((a, b) => a.date.localeCompare(b.date)).forEach(t => {
+    const c = catById(t.cat), p = c && c.parent ? catById(c.parent) : null, o = t.ref && txById(t.ref);
+    const num = v => v == null ? '' : String(v).replace('.', ',');
+    rows.push([t.date, TYPES[t.type], num(t.type === 'expense' ? -t.amount : t.amount), curOf(t), t.type === 'transfer' ? '' : num(t.type === 'expense' ? -rubOf(t) : rubOf(t)), accName(t.acc), t.to ? accName(t.to) : '', t.amount2 != null ? num(t.amount2) + ' ' + accCur(t.to) : '', p ? p.name : (c ? c.name : ''), p ? c.name : '', t.title || '', t.note || '', o ? `${o.date} ${o.title || ''}` : '']);
+  });
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\n');
+  showText('Операции (CSV)', csv, 'Скопируйте и вставьте в Google Таблицы или Excel, либо сохраните в файл с расширением .csv.');
+}
+function backup() {
+  showText('Резервная копия', JSON.stringify({app:'fin', v:1, date:todayStr(), accounts:D.accounts, cats:D.cats, tx:D.tx}),
+    'Скопируйте этот текст и сохраните его, например в «Избранном» Telegram. Из копии можно восстановить все данные.');
+}
+function restore() {
+  openSheet(() => sheetHead('Восстановление') + `<div class="hint">Вставьте текст резервной копии. Все текущие данные будут заменены.</div><textarea id="restoreArea" class="copy" placeholder="{&quot;app&quot;:&quot;fin&quot;, …}"></textarea><button class="btn" onclick="App.doRestore()">Восстановить</button>`);
+}
+async function doRestore() {
+  let data;
+  try { data = JSON.parse($('#restoreArea').value); } catch (e) { return toast('Текст не похож на резервную копию'); }
+  if (!data || !Array.isArray(data.accounts) || !Array.isArray(data.cats) || !Array.isArray(data.tx)) return toast('В копии нет нужных данных');
+  if (!await ask(`Заменить данные? В копии: ${data.accounts.length} счетов, ${data.cats.length} категорий, ${data.tx.length} операций.`)) return;
+  const months = new Set([...D.tx, ...data.tx].map(t => t.date.slice(0,7)));
+  D = {accounts:data.accounts, cats:data.cats, tx:data.tx};
+  saveAccounts(); saveCats(); saveMonths(months);
+  stack.length = 0; showSheet(); render(); toast('Данные восстановлены');
+}
+
+/* ================= Связка с кнопками ================= */
+window.App = {
+  newTx, editTx, saveTx, delTx, dtype, pickRef, df, accView,
+  amt(v) { draft.amount = v; recalc(); },
+  rubIn(v) { draft.rub = v; draft.rubManual = true; },
+  a2In(v) { draft.amount2 = v; draft.a2Manual = true; },
+  accDate(v) { ui.accDate = v || todayStr(); render(); },
+  histDate(v) { ui.accDate = v || todayStr(); render(); showSheet(); }, editAcc, saveAcc, delAcc, editCat, saveCat, delCat, catTx,
+  exportCSV, backup, restore, doRestore, copy, back,
+  d(k, v) { draft[k] = v; },
+  dr(k, v) { draft[k] = v; showSheet(); },
+  set(k, v) { ui[k] = v; render(); },
+  search(v) { ui.search = v; renderOpsList(); },
+  opsMonth(k) { ui.month = shiftMonth(ui.month, k); render(); },
+  anShift(k) { ui.anMonth = shiftMonth(ui.anMonth, ui.anPeriod === 'month' ? k : 12 * k); render(); },
+  pickMonth(m) { ui.anPeriod = 'month'; ui.anMonth = m; render(); window.scrollTo(0, 0); },
+  toggle(id) { ui.open[id] = !ui.open[id]; render(); },
+};
+
+
+async function init() {
+  $('#fab').innerHTML = icon('plus', 26);
+  document.querySelectorAll('#tabs button').forEach(b => b.insertAdjacentHTML('afterbegin', icon(b.dataset.tab)));
+  if (IN_TG) {
+    try { TG.ready(); TG.expand(); } catch (e) {}
+    try { TG.BackButton.onClick(back); } catch (e) {}
+    try { TG.setHeaderColor('#0d0e12'); TG.setBackgroundColor('#0d0e12'); TG.setBottomBarColor && TG.setBottomBarColor('#16181e'); } catch (e) {}
+  }
+  document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { ui.tab = b.dataset.tab; render(); window.scrollTo(0, 0); });
+  try {
+    const res = await Store.loadAll();
+    if (!res) { seed(); await saveAccounts(); await saveCats(); }
+    else {
+      D = {accounts:res.accounts || [], cats:res.cats || [], tx:[]};
+      for (const [k, v] of Object.entries(res)) if (k.startsWith('tx_') && Array.isArray(v)) D.tx.push(...v);
+    }
+  } catch (e) {
+    $('#view').innerHTML = `<div class="empty">Не удалось загрузить данные: ${esc(e)}<button class="btn" onclick="location.reload()">Повторить</button></div>`;
+    return;
+  }
+  render();
+}
+init();
+</script>
+</body>
+</html>
