@@ -173,6 +173,7 @@ h3{font-size:15px;margin:18px 4px 8px}
 .panel .card,.panel .seg,.panel label input,.panel label select,.panel label textarea{background:var(--card2)}
 .panel .row .ic{background:var(--card)}
 .panel .btn.sec,.panel .x{background:var(--card2)}
+.panel .search{background:var(--card2)}
 .sh-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;position:sticky;top:-6px;background:var(--sheet);z-index:1}
 .sh-head b{font-size:17px}
 .x{border:0;background:var(--bg);color:var(--hint);width:32px;height:32px;border-radius:50%;font-size:15px;flex:none;cursor:pointer}
@@ -600,8 +601,11 @@ async function reloadAll() {
 }
 
 // Изменения балансов от одной операции: [[счет, сумма в валюте счета], ...]
+// Возврат бывает двух видов: возврат расхода (деньги пришли, rk нет) и возврат дохода (rk:'income' — деньги ушли)
+const isIncRefund = t => t.type === 'refund' && t.rk === 'income';
+const catTypeOf = d => (d.type === 'income' || (d.type === 'refund' && d.rk === 'income')) ? 'income' : 'expense';
 function deltas(t) {
-  if (t.type === 'expense') return [[t.acc, -accAmtOf(t)]];
+  if (t.type === 'expense' || isIncRefund(t)) return [[t.acc, -accAmtOf(t)]];
   if (t.type === 'income' || t.type === 'refund') return [[t.acc, accAmtOf(t)]];
   if (t.type === 'transfer') return [[t.acc, -t.amount], [t.to, t.amount2 ?? t.amount]];
   return [];
@@ -629,7 +633,8 @@ function analyze(inPeriod) {
     else if (t.type === 'income' && inPeriod(t.date.slice(0,7))) { const k = t.cat || '_none'; inc[k] = (inc[k] || 0) + rubOf(t); }
     else if (t.type === 'refund' && inPeriod(effMonth(t))) {
       const o = t.ref && txById(t.ref); const k = t.cat || (o && o.cat) || '_none';
-      exp[k] = (exp[k] || 0) - rubOf(t); refunds += rubOf(t);
+      if (isIncRefund(t)) inc[k] = (inc[k] || 0) - rubOf(t);   // возврат дохода уменьшает доход
+      else { exp[k] = (exp[k] || 0) - rubOf(t); refunds += rubOf(t); }
     }
   }
   const sum = o => Object.values(o).reduce((a, b) => a + b, 0);
@@ -675,14 +680,15 @@ function txRow(t) {
     ico = t.type === 'refund' ? `<div class="ic" style="color:var(--orange)">${icon('refund', 20)}</div>` : catBadge(c);
     title = t.title || (c ? c.name : TYPES[t.type]);
     sub = `${esc(catPath(t.cat) || 'Без категории')} · ${esc(accName(t.acc))}`;
-    const sg = t.type === 'expense' ? '−' : '+';
-    cls = t.type === 'expense' ? 'neg' : 'pos';
+    const out = t.type === 'expense' || isIncRefund(t);
+    const sg = out ? '−' : '+';
+    cls = out ? 'neg' : 'pos';
     amt = money(t.amount, sg, cur);
     if (cur !== 'RUB') small = money(rubOf(t), sg);
   }
-  if (t.type === 'expense') { const r = refundedSum(t.id); if (r > 0) extra = `<div class="tag">возвращено ${money(r, '', cur)} · чистый расход ${money(t.amount - r, '', cur)}</div>`; }
-  if (t.type === 'refund') { const o = t.ref && txById(t.ref); extra = `<div class="tag">возврат${o ? ` за «${esc(o.title || catPath(o.cat) || 'покупку')}» от ${shortDate(o.date)} (${money(o.amount, '', curOf(o))})` : ''}</div>`; }
-  if (t.note) extra += `<div class="note">${esc(t.note)}</div>`;
+  if (t.type === 'expense' || t.type === 'income') { const r = refundedSum(t.id); if (r > 0) extra = `<div class="tag">возвращено ${money(r, '', cur)} · чистый ${t.type === 'expense' ? 'расход' : 'доход'} ${money(t.amount - r, '', cur)}</div>`; }
+  if (t.type === 'refund') { const o = t.ref && txById(t.ref); extra = `<div class="tag">${isIncRefund(t) ? 'возврат дохода' : 'возврат'}${o ? ` за «${esc(o.title || catPath(o.cat) || 'операцию')}» от ${shortDate(o.date)} (${money(o.amount, '', curOf(o))})` : ''}</div>`; }
+  // Заметки в общем списке не показываем — они видны, когда открываешь операцию
   return `<div class="row" onclick="App.editTx('${t.id}')">${ico}<div class="mid"><div class="tt">${esc(title)}</div><div class="sub">${sub}</div>${extra}</div><div class="amt ${cls}">${amt}${small ? `<div class="rub">${small}</div>` : ''}</div></div>`;
 }
 function groupByDay(list) {
@@ -936,10 +942,28 @@ function pickCur(target) {
 function pickAccType() {
   openPicker('Тип счета', Object.entries(ACC_TYPE_ONE).map(([k, l]) => ({v:k, label:l, ic:`<div class="ic">${icon(ACC_ICON[k], 20)}</div>`})), draft.type, v => { draft.type = v; showSheet(); });
 }
+// Окно выбора операции для возврата: поиск по словам из названия, категории и заметки
+let refQ = '';
+function refListHtml() {
+  const kind = draft.rk === 'income' ? 'income' : 'expense';
+  const words = noYo(refQ).toLowerCase().split(/\s+/).filter(Boolean);
+  const hay = t => noYo([t.title, catPath(t.cat), t.note, String(t.amount)].join(' ')).toLowerCase();
+  const list = D.tx.filter(t => t.type === kind && words.every(w => hay(t).includes(w))).sort(sortTx);
+  const sel = draft.ref;
+  let h = '<div class="card">';
+  if (!words.length) h += `<div class="row prow ${!sel ? 'on' : ''}" onclick="App.pickRefId('')"><div class="ic">${icon('none', 20)}</div><div class="mid"><div class="tt">Не привязывать</div></div>${!sel ? `<span class="chk">${icon('check', 20)}</span>` : ''}</div>`;
+  list.slice(0, 100).forEach(t => {
+    h += `<div class="row prow ${t.id === sel ? 'on' : ''}" onclick="App.pickRefId('${t.id}')">${catBadge(catById(t.cat))}<div class="mid"><div class="tt">${esc(t.title || catPath(t.cat) || 'Без названия')}</div><div class="sub">${shortDate(t.date)} · ${esc(catPath(t.cat) || 'Без категории')}</div></div><div class="amt ${kind === 'expense' ? 'neg' : 'pos'}">${money(t.amount, kind === 'expense' ? '−' : '+', curOf(t))}</div></div>`;
+  });
+  if (!list.length) h += `<div class="empty">${words.length ? 'Ничего не найдено' : (kind === 'expense' ? 'Расходов пока нет' : 'Доходов пока нет')}</div>`;
+  else if (list.length > 100) h += `<div class="hint pad">Показаны последние 100 — уточните поиск</div>`;
+  return h + '</div>';
+}
 function pickRefTx() {
-  const exps = D.tx.filter(t => t.type === 'expense').sort(sortTx).slice(0, 300);
-  openPicker('Какую покупку вернули', [{v:'', label:'Не привязывать', ic:`<div class="ic">${icon('none', 20)}</div>`}].concat(exps.map(t => ({
-    v:t.id, label:esc(t.title || catPath(t.cat) || 'Без названия'), sub:`${shortDate(t.date)} · ${money(t.amount, '', curOf(t))}`, ic:catBadge(catById(t.cat))}))), draft.ref, v => pickRef(v));
+  refQ = '';
+  openSheet(() => sheetHead(draft.rk === 'income' ? 'Какой доход вернули' : 'Какую покупку вернули') +
+    `<div class="searchbox">${icon('search', 18)}<input class="search" type="search" placeholder="Название или категория" value="${esc(refQ)}" oninput="App.refSearch(this.value)"></div>
+    <div id="refList" style="min-height:70vh">${refListHtml()}</div>`);
 }
 function pickParent() {
   const d = draft;
@@ -948,7 +972,7 @@ function pickParent() {
 }
 // Выбор категории: основные категории списком, подкатегории — «таблетками» под ними
 function pickCat() {
-  const type = draft.type === 'income' ? 'income' : 'expense';
+  const type = catTypeOf(draft);
   openSheet(() => {
     const sel = draft.cat;
     let h = sheetHead('Категория') + '<div class="card">' +
@@ -971,14 +995,14 @@ function defaultAcc() {
 function newTx() {
   const acc = defaultAcc();
   if (!acc) { toast('Сначала добавьте счет'); ui.tab = 'acc'; render(); return; }
-  draft = {type:'expense', amount:'', cur:accCur(acc), curTouched:false, rub:'', rubManual:false, amount2:'', a2Manual:false,
+  draft = {type:'expense', rk:'expense', amount:'', cur:accCur(acc), curTouched:false, rub:'', rubManual:false, amount2:'', a2Manual:false,
     date:todayStr(), acc, to:'', cat:'', title:'', note:'', ref:''};
   openSheet(txForm); prepRates();
   setTimeout(() => { const i = $('#f_amount'); i && i.focus(); }, 250);
 }
 function editTx(id) {
   const t = txById(id); if (!t) return;
-  draft = {...t, amount:String(t.amount), cur:curOf(t), curTouched:true,
+  draft = {...t, rk:t.rk || 'expense', amount:String(t.amount), cur:curOf(t), curTouched:true,
     rub:t.rub != null ? String(t.rub) : '', rubManual:t.rub != null,
     amount2:t.amount2 != null ? String(t.amount2) : '', a2Manual:t.amount2 != null,
     to:t.to || '', cat:t.cat || '', title:t.title || '', note:t.note || '', ref:t.ref || ''};
@@ -1039,11 +1063,16 @@ function txForm() {
   }
   if (!isT && formCurs().length) h += `<div class="hint pad" id="rateHint">${rateHint()}</div>`;
   if (isR) {
-    const o = d.ref && txById(d.ref);
-    h += `<label>Какую покупку вернули${selField(o ? `${catBadge(catById(o.cat))}<span class="grow">${esc(o.title || catPath(o.cat) || 'Без названия')}<small>${shortDate(o.date)}</small></span>` : `<span class="grow" style="color:var(--hint)">Не привязывать</span>`, 'App.pickRefTx()')}</label>`;
+    const inc = d.rk === 'income', o = d.ref && txById(d.ref);
+    h += `<label>Что возвращаем<div class="seg" style="margin:4px 0 0">
+      <button class="${!inc ? 'on' : ''}" onclick="App.rk('expense')">Мне вернули (расход)</button>
+      <button class="${inc ? 'on' : ''}" onclick="App.rk('income')">Я вернула (доход)</button></div></label>`;
+    h += `<label>${inc ? 'Какой доход вернули' : 'Какую покупку вернули'}${selField(o ? `${catBadge(catById(o.cat))}<span class="grow">${esc(o.title || catPath(o.cat) || 'Без названия')}<small>${shortDate(o.date)}</small></span>` : `<span class="grow" style="color:var(--hint)">Не привязывать</span>`, 'App.pickRefTx()')}</label>`;
     h += o
-      ? `<div class="hint pad">Покупка: ${money(o.amount, '', curOf(o))}${refundedSum(o.id, d.id) ? ` · уже возвращено ${money(refundedSum(o.id, d.id), '', curOf(o))}` : ''}. Укажите сумму, которую вам фактически вернули, — разница останется расходом.</div>`
-      : `<div class="hint pad">Привяжите покупку, чтобы возврат уменьшил расход в той же категории и в месяце покупки. Сумма возврата может быть меньше суммы покупки.</div>`;
+      ? `<div class="hint pad">${inc ? 'Доход' : 'Покупка'}: ${money(o.amount, '', curOf(o))}${refundedSum(o.id, d.id) ? ` · уже возвращено ${money(refundedSum(o.id, d.id), '', curOf(o))}` : ''}. Укажите фактическую сумму возврата — разница останется ${inc ? 'доходом' : 'расходом'}.</div>`
+      : `<div class="hint pad">${inc
+          ? 'Например, вернули часть зарплаты или предоплату. Привяжите доход, чтобы возврат уменьшил его в той же категории и в том же месяце.'
+          : 'Привяжите покупку, чтобы возврат уменьшил расход в той же категории и в месяце покупки. Сумма возврата может быть меньше суммы покупки.'}</div>`;
   }
   h += `<label>Дата${dateField(d.date, "App.df('date',this.value)")}</label>`;
   if (isT) {
@@ -1055,7 +1084,7 @@ function txForm() {
     }
   } else {
     h += `<label>Категория${selField(catInner(d.cat), 'App.pickCat()')}</label>
-      <label>${d.type === 'expense' ? 'Счет списания' : 'Счет зачисления'}${selField(accInner(d.acc), "App.pickAcc('acc')")}</label>`;
+      <label>${d.type === 'expense' || (isR && d.rk === 'income') ? 'Счет списания' : 'Счет зачисления'}${selField(accInner(d.acc), "App.pickAcc('acc')")}</label>`;
   }
   h += `<label>Название<input placeholder="${isT ? 'Например: пополнение вклада' : isR ? 'Например: возврат билетов' : 'Например: билеты в Казань'}" value="${esc(d.title)}" oninput="App.d('title',this.value)"></label>
     <label>Заметка<textarea rows="2" placeholder="Необязательно" oninput="App.d('note',this.value)">${esc(d.note)}</textarea></label>
@@ -1073,9 +1102,9 @@ function df(k, v) {
 }
 function dtype(k) {
   draft.type = k;
-  const c = catById(draft.cat), need = k === 'income' ? 'income' : 'expense';
+  const c = catById(draft.cat), need = catTypeOf(draft);
   if (c && c.type !== need) draft.cat = '';
-  if (k !== 'refund') draft.ref = '';
+  if (k !== 'refund') { draft.ref = ''; draft.rk = 'expense'; }
   if (k === 'transfer') draft.cur = accCur(draft.acc);
   showSheet(); prepRates();
 }
@@ -1083,10 +1112,11 @@ function pickRef(id) {
   draft.ref = id;
   const o = txById(id);
   if (o) {
+    draft.rk = o.type === 'income' ? 'income' : 'expense';
     draft.cat = o.cat || '';
     if (accById(o.acc)) draft.acc = o.acc;
     draft.cur = curOf(o); draft.curTouched = true; draft.rubManual = false;
-    if (!draft.title) draft.title = 'Возврат: ' + (o.title || catPath(o.cat) || 'покупка');
+    if (!draft.title) draft.title = 'Возврат: ' + (o.title || catPath(o.cat) || (o.type === 'income' ? 'доход' : 'покупка'));
     if (!draft.amount) draft.amount = String(r2(o.amount - refundedSum(o.id, draft.id)));
   }
   showSheet(); prepRates();
@@ -1121,6 +1151,7 @@ function saveTx() {
       else { const ra = Rates.get(d.date, aCur); if (!ra) return toast('Нет курса для валюты счета — попробуйте позже'); t.accAmt = r2(rub / ra); }
     }
     if (d.type === 'refund' && d.ref) t.ref = d.ref;
+    if (d.type === 'refund' && d.rk === 'income') t.rk = 'income';
   }
   if (d.title.trim()) t.title = d.title.trim();
   if (d.note.trim()) t.note = d.note.trim();
@@ -1235,8 +1266,8 @@ function catTx(id, tree) {
     const ids = new Set(tree ? [id, ...childrenOf(id).map(c => c.id)] : [id]);
     const catOf = t => { const o = t.type === 'refund' && t.ref && txById(t.ref); return t.cat || (o && o.cat) || '_none'; };
     const list = D.tx.filter(t => ui.anType === 'expense'
-        ? ((t.type === 'expense' && per(t.date.slice(0,7))) || (t.type === 'refund' && per(effMonth(t))))
-        : (t.type === 'income' && per(t.date.slice(0,7))))
+        ? ((t.type === 'expense' && per(t.date.slice(0,7))) || (t.type === 'refund' && !isIncRefund(t) && per(effMonth(t))))
+        : ((t.type === 'income' && per(t.date.slice(0,7))) || (isIncRefund(t) && per(effMonth(t)))))
       .filter(t => ids.has(catOf(t))).sort(sortTx);
     const name = id === '_none' ? 'Без категории' : (catPath(id) + (!tree && childrenOf(id).length ? ' — общее' : ''));
     return sheetHead(esc(name)) + `<div class="hint">${periodLabel()}</div>` + (list.length ? groupByDay(list) : '<div class="empty">Нет операций</div>');
@@ -1257,7 +1288,8 @@ function exportCSV() {
   D.tx.slice().sort((a, b) => a.date.localeCompare(b.date)).forEach(t => {
     const c = catById(t.cat), p = c && c.parent ? catById(c.parent) : null, o = t.ref && txById(t.ref);
     const num = v => v == null ? '' : String(v).replace('.', ',');
-    rows.push([t.date, TYPES[t.type], num(t.type === 'expense' ? -t.amount : t.amount), curOf(t), t.type === 'transfer' ? '' : num(t.type === 'expense' ? -rubOf(t) : rubOf(t)), accName(t.acc), t.to ? accName(t.to) : '', t.amount2 != null ? num(t.amount2) + ' ' + accCur(t.to) : '', p ? p.name : (c ? c.name : ''), p ? c.name : '', t.title || '', t.note || '', o ? `${o.date} ${o.title || ''}` : '']);
+    const neg = t.type === 'expense' || isIncRefund(t);
+    rows.push([t.date, isIncRefund(t) ? 'Возврат дохода' : TYPES[t.type], num(neg ? -t.amount : t.amount), curOf(t), t.type === 'transfer' ? '' : num(neg ? -rubOf(t) : rubOf(t)), accName(t.acc), t.to ? accName(t.to) : '', t.amount2 != null ? num(t.amount2) + ' ' + accCur(t.to) : '', p ? p.name : (c ? c.name : ''), p ? c.name : '', t.title || '', t.note || '', o ? `${o.date} ${o.title || ''}` : '']);
   });
   const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\n');
   showText('Операции (CSV)', csv, 'Скопируйте и вставьте в Google Таблицы или Excel, либо сохраните в файл с расширением .csv.');
@@ -1285,7 +1317,10 @@ async function doRestore() {
 /* ================= Связка с кнопками ================= */
 window.App = {
   newTx, editTx, saveTx, delTx, dtype, pickRef, df, accView,
-  moveCat, pick, pickAcc, pickCur, pickAccType, pickRefTx, pickParent, pickCat, setCat,
+  moveCat, pick, pickAcc, pickCur,
+  rk(v) { const d = draft; if (d.rk === v) return; d.rk = v; d.ref = ''; const c = catById(d.cat); if (c && c.type !== catTypeOf(d)) d.cat = ''; showSheet(); },
+  refSearch(v) { refQ = v; const el = $('#refList'); if (el) el.innerHTML = refListHtml(); },
+  pickRefId(id) { back(); pickRef(id); }, pickAccType, pickRefTx, pickParent, pickCat, setCat,
   amt(v) { draft.amount = v; recalc(); },
   rubIn(v) { draft.rub = v; draft.rubManual = true; },
   a2In(v) { draft.amount2 = v; draft.a2Manual = true; },
