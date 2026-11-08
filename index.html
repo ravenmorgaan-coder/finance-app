@@ -20,7 +20,7 @@
   --accent:#b9a2ff;
   --accent-text:#1a0f33;
   --line:rgba(255,255,255,.07);
-  --red:#ff6b6b;--green:#4fd18b;--orange:#f2a65a;
+  --red:#ff6b6b;--green:#4fd18b;--orange:#f2a65a;--blue:#7cc4ff;
 }
 html{background:var(--bg)}
 body{background:transparent}
@@ -892,7 +892,7 @@ function viewAcc() {
     <button class="mv" ${i === n - 1 ? 'disabled' : ''} onclick="App.moveAcc('${a.id}',1)" aria-label="Ниже">${icon('down', 18)}</button></div>`;
   const row = (a, i, list) => {
     const c = a.cur || 'RUB', r = Rates.get(date, c);
-    return `<div class="row" ${ro ? '' : `onclick="App.accView('${a.id}')"`}><div class="ic" style="color:${accColor(a)};background:${accColor(a)}22">${icon(ACC_ICON[a.type] || 'card', 20)}</div><div class="mid"><div class="tt">${esc(a.name)}</div>${(() => { const n = nextInterest(a); const parts = [c !== 'RUB' ? CURS[c].n : '', n ? `<span style="color:${bigInterest(n, c) ? 'var(--green)' : 'var(--text)'}">${dayMonth(n.date)}: ≈ ${money(n.amount, '+', c)}</span>` : ''].filter(Boolean); return parts.length ? `<div class="sub">${parts.join(' · ')}</div>` : ''; })()}</div><div class="amt ${b[a.id] < 0 ? 'neg' : ''}">${signed(b[a.id], c)}${c !== 'RUB' && r ? `<div class="rub">≈ ${signed(b[a.id] * r)}</div>` : ''}</div>${mvs(a, i, list.length)}</div>`;
+    return `<div class="row" ${ro ? '' : `onclick="App.accView('${a.id}')"`}><div class="ic" style="color:${accColor(a)};background:${accColor(a)}22">${icon(ACC_ICON[a.type] || 'card', 20)}</div><div class="mid"><div class="tt">${esc(a.name)}</div>${(() => { const n = nextInterest(a); const parts = [c !== 'RUB' ? CURS[c].n : '', n && bigInterest(n, c) ? `<span style="color:var(--green)">${dayMonth(n.date)}: ≈ ${money(n.amount, '+', c)}</span>` : ''].filter(Boolean); return parts.length ? `<div class="sub">${parts.join(' · ')}</div>` : ''; })()}</div><div class="amt ${b[a.id] < 0 ? 'neg' : ''}">${signed(b[a.id], c)}${c !== 'RUB' && r ? `<div class="rub">≈ ${signed(b[a.id] * r)}</div>` : ''}</div>${mvs(a, i, list.length)}</div>`;
   };
   let h = `<div class="datebar"><span class="hint">Остатки на</span>${dateField(date, 'App.accDate(this.value)')}${!isToday ? `<button class="mini" onclick="App.accDate('')">Сегодня</button>` : ''}
     <button class="mv tall ${ro ? 'on' : ''}" onclick="App.toggleAccReorder()" aria-label="Изменить порядок">${icon('sort', 20)}</button></div>
@@ -1405,7 +1405,7 @@ function accForm() {
     ${hasInterest(d) && d.intOn ? `<div class="amtrow"><label>% годовых<input inputmode="decimal" value="${esc(d.intRate)}" placeholder="16" oninput="App.d('intRate',this.value)"></label>
       <label style="width:170px;flex:none">Дата открытия${dateField(d.intOpen, "App.dr('intOpen',this.value)")}</label></div>
       <div class="hint pad">Каждый месяц ${d.intOpen ? `<b>${+d.intOpen.slice(8,10)}-го числа</b>` : 'в число открытия'} приложение само добавит доход «Проценты: ${esc(d.name || 'счет')}». Сумма считается по остатку на каждый день: ставка ÷ 365, с учетом уже начисленных процентов. Начисления начнутся со следующей даты — прошлые месяцы не добавляются. Автоначисление можно поправить или удалить, как обычную операцию.</div>` : ''}
-    ${d.id ? `<label class="check"><input type="checkbox" ${d.archived ? 'checked' : ''} onchange="App.d('archived',this.checked)"> Скрыть — счет переедет в «Скрытые счета» и не будет учитываться во «Всего денег». Операции и проценты по нему работают как обычно</label>` : ''}
+    ${d.id ? `<label class="check"><input type="checkbox" ${d.archived ? 'checked' : ''} onchange="App.d('archived',this.checked)"> Скрыть</label>` : ''}
     <button class="btn" onclick="App.saveAcc()">Сохранить</button>
     ${d.id ? `<button class="btn danger" onclick="App.delAcc()">Удалить счет</button>` : ''}`;
 }
