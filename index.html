@@ -191,6 +191,20 @@ h3{font-size:15px;margin:18px 4px 8px}
 .qa-item.last-sugg{margin-bottom:8px}
 #qaBack{display:none;position:fixed;inset:0;z-index:11;background:rgba(8,4,20,.35)}
 #qaBack.open{display:block}
+.pin{display:flex;flex-direction:column;align-items:center;text-align:center;padding:36px 0 10px}
+.pin .lock{width:60px;height:60px;border-radius:50%;background:var(--card);display:grid;place-items:center;color:var(--accent);margin-bottom:14px}
+.pin h2{font-size:19px;margin:0 0 6px}
+.dots{display:flex;gap:18px;margin:22px 0 30px}
+.dots i{width:14px;height:14px;border-radius:50%;border:2px solid var(--hint);transition:background .1s}
+.dots i.on{background:var(--accent);border-color:var(--accent)}
+.dots.err{animation:shake .35s}
+.dots.err i{border-color:var(--red)}
+@keyframes shake{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+.keys{display:grid;grid-template-columns:repeat(3,74px);gap:16px 28px}
+.keys button{width:74px;height:74px;border-radius:50%;border:0;background:var(--card);color:var(--text);font:inherit;font-size:28px;cursor:pointer;display:grid;place-items:center}
+.keys button:active{background:var(--accent);color:var(--accent-text)}
+.keys .ghost{background:transparent;color:var(--hint)}
+.keys .small{font-size:15px}
 #sheet{position:fixed;inset:0;z-index:20}
 #sheet.hidden{display:none}
 .backdrop{position:absolute;inset:0;background:rgba(8,4,20,.65)}
@@ -286,6 +300,8 @@ const ICONS = {
   none:'<circle cx="12" cy="12" r="7" stroke-dasharray="3 3"/>',
   cal:'<rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M9 3v4M15 3v4"/>',
   down:'<path d="M7 10l5 5 5-5"/>',
+  lock:'<rect x="5" y="11" width="14" height="10" rx="2.5"/><path d="M8 11V8a4 4 0 018 0v3"/>',
+  bksp:'<path d="M9 5h11v14H9l-6-7z"/><path d="M13 9.5l5 5M18 9.5l-5 5"/>',
   eyeoff:'<path d="M3 3l18 18M10.6 6.1A9.8 9.8 0 0112 6c5 0 8.5 4 9.5 6-.4.9-1.3 2.2-2.5 3.4M6.6 6.6C4.4 8 3 10.1 2.5 12c1 2 4.5 6 9.5 6 1.6 0 3-.4 4.3-1M9.9 9.9a3 3 0 004.2 4.2"/>',
   up:'<path d="M7 14l5-5 5 5"/>',
   bolt:'<path d="M13 3L5 13.5h6L10 21l8-10.5h-6z"/>',
@@ -482,7 +498,7 @@ const Rates = (() => {
 })();
 
 /* ================= Данные ================= */
-let D = {accounts:[], cats:[], tx:[]};
+let D = {accounts:[], cats:[], tx:[], settings:[]};
 const ui = {tab:'ops', month:todayStr().slice(0,7), filter:'all', search:'', anMonth:todayStr().slice(0,7), anPeriod:'month', anType:'expense', open:{}, catTab:'expense', lastAcc:null, accDate:todayStr()};
 let draft = null;
 const stack = [];
@@ -516,7 +532,7 @@ function seed() {
     subs.forEach(s => cats.push({id:uid(), type, name:s, parent:id, icon:NAME_ICON[noYo(s)]}));
   });
   add('expense', E); add('income', I);
-  D = {accounts:[{id:uid(), name:'Основная карта', type:'card', initial:0}], cats, tx:[]};
+  D = {accounts:[{id:uid(), name:'Основная карта', type:'card', initial:0}], cats, tx:[], settings:[]};
 }
 
 const catById = id => D.cats.find(c => c.id === id);
@@ -629,6 +645,7 @@ async function reloadAll() {
     const res = await Store.loadAll(); if (!res) return;
     if (!res._bad.includes('accounts')) applyColl('accounts', res.accounts || []);
     if (!res._bad.includes('cats')) applyColl('cats', res.cats || []);
+    if (!res._bad.includes('settings')) applyColl('settings', res.settings || []);
     const badMonths = new Set(res._bad.filter(k => k.startsWith('tx_')));
     const remote = [];
     for (const [k, v] of Object.entries(res)) if (k.startsWith('tx_') && Array.isArray(v)) remote.push(...v);
@@ -882,7 +899,63 @@ function moveAcc(id, dir) {
 const accColor = a => (a && a.color) || COLORS[Math.max(0, D.accounts.indexOf(a)) % COLORS.length];
 const accIc = (a, size = 20) => `<div class="ic" style="color:${accColor(a)};background:${accColor(a)}22">${icon(ACC_ICON[a.type] || 'card', size)}</div>`;
 
+/* ================= Пин-код для страницы «Счета» =================
+   Сам код нигде не хранится — только его хеш (SHA-256) в вашем облаке Telegram, в коде на GitHub его нет.
+   «Открыто» помнится только в памяти: свернули и развернули — открыто; закрыли приложение — снова нужен код. */
+let pinOk = false;
+const pinRec = () => (D.settings || []).find(x => x.id === 'pin');
+const pinOn = () => !!(pinRec() && pinRec().hash);
+const locked = () => pinOn() && !pinOk;
+async function pinHash(p) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('fin-pin-v1:' + p));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+const pin = {entry:'', mode:'unlock', first:'', err:''};   // mode: unlock | set1 | set2
+function viewPin() {
+  const titles = {unlock:'Введите пин-код', set1:pinOn() ? 'Новый пин-код' : 'Придумайте пин-код', set2:'Повторите пин-код'};
+  const sub = pin.err || (pin.mode === 'unlock' ? 'Страница «Счета» защищена' : 'Он будет нужен, чтобы открыть «Счета»');
+  const keys = ['1','2','3','4','5','6','7','8','9', pin.mode === 'unlock' ? '' : 'skip', '0', 'del'];
+  return `<div class="pin"><div class="lock">${icon('lock', 26)}</div><h2>${titles[pin.mode]}</h2>
+    <div class="hint" style="${pin.err ? 'color:var(--red)' : ''}">${sub}</div>
+    <div class="dots ${pin.err ? 'err' : ''}">${[0,1,2,3].map(i => `<i class="${i < pin.entry.length ? 'on' : ''}"></i>`).join('')}</div>
+    <div class="keys">${keys.map(k => k === '' ? '<span></span>'
+      : k === 'del' ? `<button class="ghost" onclick="App.pinKey('del')" aria-label="Стереть">${icon('bksp', 26)}</button>`
+      : k === 'skip' ? `<button class="ghost small" onclick="App.pinCancel()">${pinOn() ? 'Отмена' : 'Позже'}</button>`
+      : `<button onclick="App.pinKey('${k}')">${k}</button>`).join('')}</div></div>`;
+}
+async function pinKey(k) {
+  if (k === 'del') { pin.entry = pin.entry.slice(0, -1); pin.err = ''; return render(); }
+  if (pin.entry.length >= 4) return;
+  pin.entry += k; pin.err = ''; render();
+  if (pin.entry.length < 4) return;
+  const code = pin.entry;
+  if (pin.mode === 'unlock') {
+    if (await pinHash(code) === pinRec().hash) { pinOk = true; pin.entry = ''; haptic('success'); }
+    else { pin.entry = ''; pin.err = 'Неверный пин-код'; haptic('error'); }
+  } else if (pin.mode === 'set1') { pin.first = code; pin.entry = ''; pin.mode = 'set2'; }
+  else {
+    if (code === pin.first) {
+      const rec = {id:'pin', hash:await pinHash(code)};
+      D.settings = (D.settings || []).filter(x => x.id !== 'pin').concat(rec);
+      syncColl('settings', [rec]);
+      pinOk = true; ui.pinSetup = false; pin.mode = 'unlock'; pin.entry = ''; pin.first = '';
+      haptic('success'); toast('Пин-код установлен');
+    } else { pin.mode = 'set1'; pin.entry = ''; pin.first = ''; pin.err = 'Коды не совпали, попробуйте еще раз'; haptic('error'); }
+  }
+  setTimeout(render, pin.err ? 0 : 120);
+}
+function pinCancel() { ui.pinSetup = false; ui.pinLater = true; pin.mode = 'unlock'; pin.entry = ''; pin.first = ''; pin.err = ''; render(); }
+function pinChange() { ui.pinSetup = true; pin.mode = 'set1'; pin.entry = ''; pin.first = ''; pin.err = ''; render(); window.scrollTo(0, 0); }
+async function pinOff() {
+  if (!await ask('Отключить пин-код? «Счета» будут открываться без него.')) return;
+  D.settings = (D.settings || []).filter(x => x.id !== 'pin');
+  syncColl('settings', [], ['pin']); ui.pinLater = true; toast('Пин-код отключен'); render();
+}
+
 function viewAcc() {
+  // Защита: нет кода — предлагаем придумать (можно «Позже»); код есть и не введен — просим ввести
+  if (ui.pinSetup || (!pinOn() && !ui.pinLater)) { if (pin.mode === 'unlock') pin.mode = 'set1'; return viewPin(); }
+  if (locked()) { pin.mode = 'unlock'; return viewPin(); }
   const date = ui.accDate, isToday = date >= todayStr();
   const b = balances(date);
   // act — видимые (участвуют в «Всего денег» и кольце), arch — скрытые (не участвуют, но работают как обычно)
@@ -932,6 +1005,11 @@ function viewAcc() {
     <button class="btn sec" onclick="App.exportCSV()">Выгрузить операции (CSV)</button>
     <button class="btn sec" onclick="App.backup()">Резервная копия</button>
     <button class="btn sec" onclick="App.restore()">Восстановить из копии</button>
+  </div>
+  <div class="day">Пин-код</div><div class="card pad">
+    <div class="hint">${pinOn() ? 'Страница «Счета» открывается по пин-коду. Если свернуть приложение — код не спросит, если закрыть — спросит снова.' : 'Пин-код не установлен: «Счета» открываются без него.'}</div>
+    ${pinOn() ? `<button class="btn sec" onclick="App.pinChange()">Сменить пин-код</button><button class="btn danger" onclick="App.pinOff()">Отключить пин-код</button>`
+      : `<button class="btn sec" onclick="App.pinChange()">Установить пин-код</button>`}
   </div>`;
   return h;
 }
@@ -1139,7 +1217,7 @@ function renderQA() {
   _sugg = ui.tab === 'cats' ? [] : suggestions();
   const items = _sugg.map((sg, i) => ({fn:`App.useSuggestion(${i})`, sugg:true, label:`<b>${esc(sg.title)}</b>`, ic:catBadge(catById(sg.cat))}));
   if (ui.tab === 'ops') items.push({k:'order', label:ui.reorder ? 'Закончить порядок' : 'Порядок операций', ic:'sort', on:ui.reorder});
-  if (ui.tab === 'acc') items.push({k:'order', label:ui.accReorder ? 'Закончить порядок' : 'Порядок счетов', ic:'sort', on:ui.accReorder});
+  if (ui.tab === 'acc' && !locked() && !ui.pinSetup) items.push({k:'order', label:ui.accReorder ? 'Закончить порядок' : 'Порядок счетов', ic:'sort', on:ui.accReorder});
   items.push({k:'top', label:'Наверх', ic:'top'});
   const qa = $('#qa');
   qa.className = (ui.qaOpen ? 'open ' : '') + (ui.tab === 'cats' ? 'low' : '');
@@ -1195,7 +1273,7 @@ function pick(i) { const p = _pick; if (!p) return; const v = p.items[i].v; back
 function pickAcc(field) {
   const b = balances(), sel = draft[field];
   const list = accSorted(D.accounts.filter(a => !a.archived)).concat(accSorted(D.accounts.filter(a => a.archived)));  // скрытые — в конце
-  openPicker(field === 'to' ? 'Куда' : 'Счет', list.map(a => ({v:a.id, label:esc(a.name), sub:`${ACC_TYPE_ONE[a.type]}${a.archived ? ' · скрытый' : ''} · ${signed(b[a.id] || 0, a.cur || 'RUB')}`, ic:accIc(a)})), sel, v => df(field, v));
+  openPicker(field === 'to' ? 'Куда' : 'Счет', list.map(a => ({v:a.id, label:esc(a.name), sub:`${ACC_TYPE_ONE[a.type]}${a.archived ? ' · скрытый' : ''}${locked() ? '' : ' · ' + signed(b[a.id] || 0, a.cur || 'RUB')}`, ic:accIc(a)})), sel, v => df(field, v));
 }
 function pickCur(target) {
   const cur = target === 'acc' ? draft.cur : draft.cur;
@@ -1590,7 +1668,7 @@ async function doRestore() {
   if (!data || !Array.isArray(data.accounts) || !Array.isArray(data.cats) || !Array.isArray(data.tx)) return toast('В копии нет нужных данных');
   if (!await ask(`Заменить данные? В копии: ${data.accounts.length} счетов, ${data.cats.length} категорий, ${data.tx.length} операций.`)) return;
   const months = new Set([...D.tx, ...data.tx].map(t => t.date.slice(0,7)));
-  D = {accounts:data.accounts, cats:data.cats, tx:data.tx};
+  D = {accounts:data.accounts, cats:data.cats, tx:data.tx, settings:D.settings || []};
   // Восстановление — намеренная полная замена, без слияния
   Store.save('accounts', D.accounts); Store.save('cats', D.cats);
   months.forEach(m => { const list = D.tx.filter(t => t.date.slice(0,7) === m); Store.save(monthKey(m), list.length ? list : null); });
@@ -1604,6 +1682,7 @@ window.App = {
   toggleHidden(type) { if (typeof ui.showHidden !== 'object' || !ui.showHidden) ui.showHidden = {}; ui.showHidden[type] = !ui.showHidden[type]; render(); },
   toggleAccReorder() { ui.accReorder = !ui.accReorder; render(); }, pickAcc, pickCur,
   toggleReorder() { ui.reorder = !ui.reorder; render(); },
+  pinKey, pinCancel, pinChange, pinOff,
   useSuggestion, qa, qaToggle(v) { ui.qaOpen = v === undefined ? !ui.qaOpen : v; renderQA(); },
   rk(v) { const d = draft; if (d.rk === v) return; d.rk = v; d.ref = ''; const c = catById(d.cat); if (c && c.type !== catTypeOf(d)) d.cat = ''; showSheet(); },
   refSearch(v) { refQ = v; const el = $('#refList'); if (el) el.innerHTML = refListHtml(); },
@@ -1644,7 +1723,7 @@ async function init() {
     const res = await Store.loadAll();
     if (!res) { seed(); await Store.save('accounts', D.accounts); await Store.save('cats', D.cats); }
     else {
-      D = {accounts:res.accounts || [], cats:res.cats || [], tx:[]};
+      D = {accounts:res.accounts || [], cats:res.cats || [], tx:[], settings:res.settings || []};
       for (const [k, v] of Object.entries(res)) if (k.startsWith('tx_') && Array.isArray(v)) D.tx.push(...v);
     }
   } catch (e) {
