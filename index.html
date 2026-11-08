@@ -184,6 +184,11 @@ h3{font-size:15px;margin:18px 4px 8px}
 .qa-item span{background:#2a1d4d;border:1px solid var(--line);padding:7px 12px;border-radius:999px;font-size:14px;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.3)}
 .qa-item i{width:44px;height:44px;border-radius:50%;background:#2a1d4d;border:1px solid var(--line);display:grid;place-items:center;color:var(--text);box-shadow:0 4px 14px rgba(0,0,0,.3)}
 .qa-item.on i{background:var(--accent);color:var(--accent-text);border-color:transparent}
+.qa-head{font-size:12px;color:var(--hint);margin-right:56px;margin-bottom:-4px}
+.qa-item.sugg i{overflow:hidden}
+.qa-item.sugg i .ic{width:100%;height:100%;border-radius:50%}
+.qa-item.sugg span b{font-weight:600}
+.qa-item.last-sugg{margin-bottom:8px}
 #qaBack{display:none;position:fixed;inset:0;z-index:11;background:rgba(8,4,20,.35)}
 #qaBack.open{display:block}
 #sheet{position:fixed;inset:0;z-index:20}
@@ -1083,14 +1088,60 @@ function moveCat(id, dir) {
 }
 
 /* ================= Горячая кнопка: быстрые действия ================= */
+/* ===== Предложения частых расходов =====
+   Правила:
+   1. Берем расходы за последние 90 дней (без автоначислений).
+   2. «Одинаковые» — с тем же названием, категорией, картой списания и валютой.
+   3. Предлагаем только то, что встречалось минимум 2 раза.
+   4. Вес каждого раза: свежие важнее (вес затухает примерно вдвое за 3 недели),
+      а если операция была в такой же день недели, как сегодня, — вес ×1,5 (будни/выходные привычки).
+   5. Если сегодня такая операция уже внесена столько раз, сколько вы обычно вносите ее максимум за день
+      (метро 3 раза в день — значит после третьего), вес вдвое меньше. До этого предложение остается на месте.
+   6. Сумма — самая частая в этой группе (при равенстве — последняя). Берем 3 лучших. */
+function suggestions() {
+  const today = todayStr(), T = new Date(today + 'T12:00:00'), wd = T.getDay();
+  const from = (() => { const d = new Date(T); d.setDate(d.getDate() - 90); return dateStr(d); })();
+  const groups = new Map();
+  for (const t of D.tx) {
+    if (t.type !== 'expense' || t.auto || t.date < from || t.date > today || !accById(t.acc)) continue;
+    const key = [noYo((t.title || '').trim().toLowerCase()), t.cat || '', t.acc, curOf(t)].join('|');
+    const dt = new Date(t.date + 'T12:00:00'), age = (T - dt) / 864e5;
+    const w = Math.exp(-age / 30) * (dt.getDay() === wd ? 1.5 : 1);
+    let g = groups.get(key);
+    if (!g) groups.set(key, g = {n:0, score:0, amounts:new Map(), last:t, today:0, perDay:new Map()});
+    g.n++; g.score += w;
+    g.amounts.set(t.amount, (g.amounts.get(t.amount) || 0) + 1);
+    if (t.date > g.last.date || (t.date === g.last.date && t.id > g.last.id)) g.last = t;
+    if (t.date === today) g.today++; else g.perDay.set(t.date, (g.perDay.get(t.date) || 0) + 1);
+  }
+  return [...groups.values()].filter(g => g.n >= 2).map(g => {
+    let amount = g.last.amount, best = 0;
+    for (const [a, c] of g.amounts) if (c > best || (c === best && a === g.last.amount)) { best = c; amount = a; }
+    const c = catById(g.last.cat);
+    const maxPerDay = Math.max(1, ...g.perDay.values());   // сколько раз максимум за один день в прошлом
+    return {score:g.score * (g.today >= maxPerDay ? 0.5 : 1), n:g.n, amount, cur:curOf(g.last), acc:g.last.acc, cat:g.last.cat || '', title:g.last.title || (c ? c.name : 'Расход')};
+  }).sort((a, b) => b.score - a.score).slice(0, 3);
+}
+let _sugg = [];
+// Открыть форму новой операции, заполненную по предложению (сегодняшняя дата)
+function useSuggestion(i) {
+  const sg = _sugg[i]; if (!sg) return;
+  ui.qaOpen = false; renderQA();
+  newTx();
+  Object.assign(draft, {type:'expense', amount:String(sg.amount), cur:sg.cur, curTouched:true, acc:sg.acc, cat:sg.cat, title:sg.title, date:todayStr()});
+  showSheet(); prepRates();
+}
 function renderQA() {
-  const items = [{k:'top', label:'Наверх', ic:'top'}];
+  // Сверху вниз: предложения частых расходов, затем «Порядок», затем «Наверх»
+  _sugg = ui.tab === 'cats' ? [] : suggestions();
+  const items = _sugg.map((sg, i) => ({fn:`App.useSuggestion(${i})`, sugg:true, label:`<b>${esc(sg.title)}</b> · ${money(sg.amount, '', sg.cur)}`, ic:catBadge(catById(sg.cat))}));
   if (ui.tab === 'ops') items.push({k:'order', label:ui.reorder ? 'Закончить порядок' : 'Порядок операций', ic:'sort', on:ui.reorder});
   if (ui.tab === 'acc') items.push({k:'order', label:ui.accReorder ? 'Закончить порядок' : 'Порядок счетов', ic:'sort', on:ui.accReorder});
+  items.push({k:'top', label:'Наверх', ic:'top'});
   const qa = $('#qa');
   qa.className = (ui.qaOpen ? 'open ' : '') + (ui.tab === 'cats' ? 'low' : '');
-  qa.innerHTML = `<div class="qa-items">${items.slice().reverse().map(it =>
-      `<button class="qa-item ${it.on ? 'on' : ''}" onclick="App.qa('${it.k}')"><span>${it.label}</span><i>${icon(it.ic, 20)}</i></button>`).join('')}</div>
+  qa.innerHTML = `<div class="qa-items">${_sugg.length ? '<div class="qa-head">Частые расходы</div>' : ''}${items.map((it, i) =>
+      `<button class="qa-item ${it.on ? 'on' : ''} ${it.sugg ? 'sugg' : ''} ${i === _sugg.length - 1 ? 'last-sugg' : ''}" onclick="${it.fn || `App.qa('${it.k}')`}"><span>${it.label}</span><i>${it.sugg ? it.ic : icon(it.ic, 20)}</i></button>`).join('')}</div>
     <button class="qa-main" onclick="App.qaToggle()" aria-label="Быстрые действия">${icon(ui.qaOpen ? 'x' : 'bolt', 20)}</button>`;
   $('#qaBack').className = ui.qaOpen ? 'open' : '';
 }
@@ -1550,7 +1601,7 @@ window.App = {
   toggleHidden(type) { if (typeof ui.showHidden !== 'object' || !ui.showHidden) ui.showHidden = {}; ui.showHidden[type] = !ui.showHidden[type]; render(); },
   toggleAccReorder() { ui.accReorder = !ui.accReorder; render(); }, pickAcc, pickCur,
   toggleReorder() { ui.reorder = !ui.reorder; render(); },
-  qa, qaToggle(v) { ui.qaOpen = v === undefined ? !ui.qaOpen : v; renderQA(); },
+  useSuggestion, qa, qaToggle(v) { ui.qaOpen = v === undefined ? !ui.qaOpen : v; renderQA(); },
   rk(v) { const d = draft; if (d.rk === v) return; d.rk = v; d.ref = ''; const c = catById(d.cat); if (c && c.type !== catTypeOf(d)) d.cat = ''; showSheet(); },
   refSearch(v) { refQ = v; const el = $('#refList'); if (el) el.innerHTML = refListHtml(); },
   pickRefId(id) { back(); pickRef(id); }, pickAccType, pickRefTx, pickParent, pickCat, setCat,
