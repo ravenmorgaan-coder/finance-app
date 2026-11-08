@@ -124,6 +124,13 @@ label textarea{resize:vertical}
 .datefield input{position:absolute!important;inset:0;width:100%!important;height:100%;opacity:0;margin:0!important;padding:0!important;border:0!important;cursor:pointer;-webkit-appearance:none;appearance:none}
 .datebar .mini{padding:10px 12px;background:var(--card)}
 .spark{display:block;width:100%;height:120px}
+.wbars{display:flex;gap:4px;height:120px;margin:12px 0 6px}
+.wcol{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
+.wbar{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center}
+.wbar i{width:70%;max-width:18px;border-radius:4px 4px 0 0;background:var(--accent);opacity:.55}
+.wcol.sel .wbar i{opacity:1}
+.wcol span{font-size:10px;color:var(--hint)}
+.wcol.sel span{color:var(--text);font-weight:700}
 .intcard{display:flex;gap:12px;align-items:center}
 .intcard b{font-size:15px}
 .donut{padding:16px 14px}
@@ -257,6 +264,7 @@ const pad = n => String(n).padStart(2, '0');
 const dateStr = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const todayStr = () => dateStr(new Date());
 const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+const MONTHS_PREP = ['январе','феврале','марте','апреле','мае','июне','июле','августе','сентябре','октябре','ноябре','декабре'];
 const MONTHS_GEN = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
 const MONTHS_SHORT = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
 const WD = ['воскресенье','понедельник','вторник','среда','четверг','пятница','суббота'];
@@ -682,12 +690,15 @@ function accHistory(id) {
 const balanceOn = (hist, initial, date) => { let v = +initial || 0; for (const h of hist) { if (h.date > date) break; v = h.end; } return v; };
 
 /* ================= Аналитика ================= */
-function analyze(inPeriod) {
+// Дата, к которой относится операция в аналитике: возврат с привязкой — к дате покупки
+const effDate = t => { if (t.type === 'refund' && t.ref) { const o = txById(t.ref); if (o) return o.date; } return t.date; };
+const analyze = inPeriod => analyzeBy(d => inPeriod(d.slice(0,7)));
+function analyzeBy(inRange) {
   const exp = {}, inc = {}; let refunds = 0;
   for (const t of D.tx) {
-    if (t.type === 'expense' && inPeriod(t.date.slice(0,7))) { const k = t.cat || '_none'; exp[k] = (exp[k] || 0) + rubOf(t); }
-    else if (t.type === 'income' && inPeriod(t.date.slice(0,7))) { const k = t.cat || '_none'; inc[k] = (inc[k] || 0) + rubOf(t); }
-    else if (t.type === 'refund' && inPeriod(effMonth(t))) {
+    if (t.type === 'expense' && inRange(t.date)) { const k = t.cat || '_none'; exp[k] = (exp[k] || 0) + rubOf(t); }
+    else if (t.type === 'income' && inRange(t.date)) { const k = t.cat || '_none'; inc[k] = (inc[k] || 0) + rubOf(t); }
+    else if (t.type === 'refund' && inRange(effDate(t))) {
       const o = t.ref && txById(t.ref); const k = t.cat || (o && o.cat) || '_none';
       if (isIncRefund(t)) inc[k] = (inc[k] || 0) - rubOf(t);   // возврат дохода уменьшает доход
       else { exp[k] = (exp[k] || 0) - rubOf(t); refunds += rubOf(t); }
@@ -836,21 +847,173 @@ function viewAn() {
         const sp = g.total ? s.total / g.total * 100 : 0;
         h += `<div class="row subrow" onclick="App.catTx('${s.id === '_self' ? g.id : s.id}',false)"><div class="mid"><div class="tt">${esc(s.name)}</div><div class="bar"><i style="width:${Math.max(0, Math.min(100, sp))}%;background:${col};opacity:.6"></i></div></div><div class="amt">${signed(s.total)}<div class="hint">${sp.toFixed(0)}%</div></div></div>`;
       });
-      h += `<div class="row subrow link" onclick="App.catTx('${g.id}',true)">Все операции категории →</div>`;
+      h += `<div class="row subrow link" onclick="App.catTx('${g.id}',true)">История и операции категории →</div>`;
     }
   });
   h += '</div>';
-  const months = isM ? Array.from({length:12}, (_, i) => shiftMonth(ui.anMonth, i - 11)) : Array.from({length:12}, (_, i) => `${ui.anMonth.slice(0,4)}-${pad(i+1)}`);
-  const data = months.map(m => { const x = analyze(mm => mm === m); return {m, inc:x.totalInc, exp:x.totalExp}; });
   h += donut(groups, ui.anType);
-  const rows = data.slice().reverse().filter(d => d.inc || d.exp);
-  if (rows.length) {
-    h += `<h3>По месяцам</h3>`;
-    h += '<div class="card">' + rows.map(d => `<div class="row" onclick="App.pickMonth('${d.m}')"><div class="mid"><div class="tt">${monthLabel(d.m)}</div><div class="sub"><span class="pos">${money(d.inc, d.inc ? '+' : '')}</span> · <span class="neg">${money(d.exp, d.exp > 0 ? '−' : '')}</span></div></div><div class="amt">${signed(d.inc - d.exp)}</div></div>`).join('');
-    const avg = rows.reduce((s, d) => s + d.exp, 0) / rows.length;
-    h += `<div class="row"><div class="mid hint">Средний расход в месяц</div><div class="amt">${money(avg)}</div></div></div>`;
-  }
+  h += compareBlock(a);
+  if (ui.anType === 'expense' && isM) h += limitsBlock(a);
+  h += savingsBlock(a);
+  h += wealthBlock();
   return h;
+}
+
+/* ===== 1. Сравнение с прошлым периодом =====
+   Месяц — с прошлым месяцем, год — с прошлым годом. Если смотрим текущий месяц, сравниваем честно:
+   те же дни (1–9 ноября против 1–9 октября), иначе в начале месяца всегда было бы «меньше». */
+function compareBlock(cur) {
+  const isM = ui.anPeriod === 'month', type = ui.anType, today = todayStr();
+  let prev, label, curA = cur;
+  if (isM) {
+    const pm = shiftMonth(ui.anMonth, -1), pname = MONTHS_PREP[+pm.slice(5) - 1];
+    if (ui.anMonth === today.slice(0,7)) {
+      const day = +today.slice(8,10), lastPrev = new Date(+pm.slice(0,4), +pm.slice(5), 0).getDate(), upto = Math.min(day, lastPrev);
+      const curTo = ui.anMonth + '-' + pad(day), prevTo = pm + '-' + pad(upto);
+      curA = analyzeBy(d => d.slice(0,7) === ui.anMonth && d <= curTo);
+      prev = analyzeBy(d => d.slice(0,7) === pm && d <= prevTo);
+      label = `чем за 1–${upto} ${MONTHS_GEN[+pm.slice(5) - 1]}`;
+    } else { prev = analyze(m => m === pm); label = `чем в ${pname}`; }
+  } else {
+    const py = String(+ui.anMonth.slice(0,4) - 1);
+    prev = analyze(m => m.slice(0,4) === py); label = `чем в ${py} году`;
+  }
+  const map = type === 'expense' ? 'exp' : 'inc', tc = curA[type === 'expense' ? 'totalExp' : 'totalInc'], tp = prev[type === 'expense' ? 'totalExp' : 'totalInc'];
+  if (!tc && !tp) return '';
+  const word = type === 'expense' ? 'Потрачено' : 'Получено';
+  const diff = tc - tp, pct = tp ? Math.round(Math.abs(diff) / tp * 100) : null;
+  const good = type === 'expense' ? diff < 0 : diff > 0;           // для расходов «меньше» — хорошо, для доходов — «больше»
+  const col = Math.abs(diff) < 0.5 ? 'var(--text)' : good ? 'var(--green)' : 'var(--red)';
+  const head = Math.abs(diff) < 0.5 ? `${word} столько же, ${label}`
+    : diff > 0 && tp && tc / tp >= 2 ? (() => { const k = Math.round(tc / tp * 10) / 10; return `${word} в ${NF.format(k)} ${k % 1 ? 'раза' : plural(k, 'раз', 'раза', 'раз')} больше, ${label}`; })()   // «в 2,5 раза больше» читается легче, чем «на 150%»
+    : `${word} на ${pct != null ? pct + '%' : money(Math.abs(diff))} ${diff < 0 ? 'меньше' : 'больше'}, ${label}`;
+  // По основным категориям
+  const gc = new Map(rollup(curA[map]).map(g => [g.id, g])), gp = new Map(rollup(prev[map]).map(g => [g.id, g]));
+  const ids = [...new Set([...gc.keys(), ...gp.keys()])];
+  const rows = ids.map(id => { const c = gc.get(id), p = gp.get(id), g = c || p; return {id, g, cv:c ? c.total : 0, pv:p ? p.total : 0}; })
+    .map(r => ({...r, d:r.cv - r.pv})).filter(r => Math.abs(r.d) >= 0.5).sort((a, b) => Math.abs(b.d) - Math.abs(a.d));
+  let h = `<h3>Сравнение</h3><div class="card"><div class="pad"><b style="color:${col}">${head}</b>
+    <div class="hint">${money(tc)} против ${money(tp)}</div></div>`;
+  rows.forEach(r => {
+    const up = r.d > 0, bad = type === 'expense' ? up : !up;
+    const p2 = r.pv ? ` (${up ? '+' : '−'}${Math.round(Math.abs(r.d) / r.pv * 100)}%)` : ' (новое)';
+    h += `<div class="row" onclick="App.catTx('${r.id}',true)">${catBadge(r.g.cat)}<div class="mid"><div class="tt">${esc(r.g.name)}</div><div class="sub">${money(r.cv)} · было ${money(r.pv)}</div></div>
+      <div class="amt" style="color:${bad ? 'var(--red)' : 'var(--green)'}">${up ? '↑' : '↓'} ${money(Math.abs(r.d))}<div class="hint">${p2.trim()}</div></div></div>`;
+  });
+  return h + '</div>';
+}
+
+/* ===== 2. Лимиты по категориям (на месяц) ===== */
+const limitsRec = () => (D.settings || []).find(x => x.id === 'limits') || {id:'limits', items:{}};
+function catSpent(a, catId) {   // траты категории вместе с подкатегориями
+  const ids = new Set([catId, ...childrenOf(catId).map(c => c.id)]);
+  return Object.entries(a.exp).reduce((s, [k, v]) => ids.has(k) ? s + v : s, 0);
+}
+function limitsBlock(a) {
+  const items = limitsRec().items || {};
+  const list = Object.entries(items).filter(([id]) => catById(id)).map(([id, lim]) => ({c:catById(id), lim, spent:catSpent(a, id)}))
+    .sort((x, y) => y.spent / y.lim - x.spent / x.lim);
+  let h = `<h3>Лимиты на месяц</h3><div class="card">`;
+  if (!list.length) h += `<div class="pad hint">Задайте бюджет на категорию — например, «Кафе — 10 000 ₽ в месяц» — и следите за полоской.</div>`;
+  list.forEach(({c, lim, spent}) => {
+    const pct = spent / lim * 100, col = pct > 100 ? 'var(--red)' : pct >= 80 ? '#ffd166' : 'var(--green)';
+    const rest = lim - spent;
+    h += `<div class="row" onclick="App.editLimit('${c.id}')">${catBadge(c)}<div class="mid"><div class="tt">${esc(catPath(c.id))}</div>
+      <div class="bar"><i style="width:${Math.min(100, pct)}%;background:${col}"></i></div>
+      <div class="sub">${rest >= 0 ? `осталось ${money(rest)}` : `<span style="color:var(--red)">перерасход ${money(-rest)}</span>`}</div></div>
+      <div class="amt">${money(spent)}<div class="hint">из ${money(lim)}</div></div></div>`;
+  });
+  return h + `<div class="row link" onclick="App.editLimit()">+ Добавить лимит</div></div>`;
+}
+function editLimit(id) {
+  const items = limitsRec().items || {};
+  draft = {type:'expense', limitFor:id || '', cat:id || '', limit:id ? String(items[id]) : ''};
+  openSheet(() => sheetHead(draft.limitFor ? 'Лимит' : 'Новый лимит') + `
+    <label>Категория${selField(catInner(draft.cat), 'App.pickCat()')}</label>
+    <label>Лимит в месяц, ₽<input inputmode="decimal" value="${esc(draft.limit)}" placeholder="10 000" oninput="App.d('limit',this.value)"></label>
+    <div class="hint pad">Траты подкатегорий входят в лимит основной категории. Полоска желтеет с 80% и краснеет при перерасходе.</div>
+    <button class="btn" onclick="App.saveLimit()">Сохранить</button>
+    ${draft.limitFor ? `<button class="btn danger" onclick="App.delLimit()">Удалить лимит</button>` : ''}`);
+}
+function saveLimit() {
+  const v = parseAmount(draft.limit);
+  if (!draft.cat) return toast('Выберите категорию');
+  if (!(v > 0)) return toast('Укажите сумму лимита');
+  const rec = limitsRec(), items = {...(rec.items || {})};
+  if (draft.limitFor && draft.limitFor !== draft.cat) delete items[draft.limitFor];
+  items[draft.cat] = r2(v);
+  const nrec = {id:'limits', items};
+  D.settings = (D.settings || []).filter(x => x.id !== 'limits').concat(nrec);
+  syncColl('settings', [nrec]); haptic('success'); back(); render();
+}
+function delLimit() {
+  const items = {...(limitsRec().items || {})}; delete items[draft.limitFor];
+  const nrec = {id:'limits', items};
+  D.settings = (D.settings || []).filter(x => x.id !== 'limits').concat(nrec);
+  syncColl('settings', [nrec]); back(); render();
+}
+
+/* ===== 3. Норма сбережений: доход — только категория «Зарплата» (с подкатегориями) ===== */
+function savingsBlock(a) {
+  const sal = D.cats.find(c => c.type === 'income' && noYo(c.name).trim().toLowerCase() === 'зарплата');
+  let h = `<h3>Норма сбережений</h3><div class="card pad">`;
+  if (!sal) return h + `<div class="hint">Нет категории доходов «Зарплата» — заведите ее, чтобы считать норму сбережений.</div></div>`;
+  const ids = new Set([sal.id, ...childrenOf(sal.id).map(c => c.id)]);
+  const salary = Object.entries(a.inc).reduce((s, [k, v]) => ids.has(k) ? s + v : s, 0), spent = a.totalExp;
+  if (!(salary > 0)) return h + `<div class="hint">За ${ui.anPeriod === 'month' ? 'этот месяц' : 'этот год'} не было доходов из категории «Зарплата». Потрачено ${money(spent)}.</div></div>`;
+  const saved = salary - spent, pct = Math.round(saved / salary * 100);
+  const col = saved < 0 ? 'var(--red)' : pct >= 20 ? 'var(--green)' : '#ffd166';
+  h += saved >= 0 ? `<b style="color:${col};font-size:17px">Отложено ${money(saved)} — ${pct}% зарплаты</b>`
+                  : `<b style="color:${col};font-size:17px">Потрачено больше зарплаты на ${money(-saved)}</b>`;
+  h += `<div class="bar" style="height:8px;margin-top:10px"><i style="width:${Math.max(0, Math.min(100, pct))}%;background:${col}"></i></div>
+    <div class="hint" style="margin-top:8px">Зарплата ${money(salary)} · расходы ${money(spent)}. Другие доходы и переводы между счетами не учитываются.</div>`;
+  return h + '</div>';
+}
+
+/* ===== 4. Динамика всех денег на конец месяца (только после пин-кода) ===== */
+function wealthBlock() {
+  if (locked()) return `<h3>Динамика всех денег</h3><div class="card pad"><div class="hint">Скрыто пин-кодом.</div>
+    <button class="btn sec" onclick="App.set('tab','acc')">${icon('lock', 16).replace('class="i"', 'class="i" style="display:inline;vertical-align:-3px"')} Ввести пин-код</button></div>`;
+  const today = todayStr(), first = D.tx.reduce((m, t) => t.date < m ? t.date : m, today).slice(0,7);
+  const end = ui.anPeriod === 'month' ? ui.anMonth : (ui.anMonth.slice(0,4) === today.slice(0,4) ? today.slice(0,7) : ui.anMonth.slice(0,4) + '-12');
+  const months = []; for (let i = 11; i >= 0; i--) { const m = shiftMonth(end, -i); if (m >= first && m <= today.slice(0,7)) months.push(m); }
+  if (!months.length) return '';
+  const vis = D.accounts.filter(a => !a.archived);
+  const vals = months.map(m => {
+    const last = new Date(+m.slice(0,4), +m.slice(5), 0).getDate(), d = m === today.slice(0,7) ? today : `${m}-${pad(last)}`;
+    const b = balances(d);
+    let sum = 0;
+    for (const a of vis) {
+      const c = a.cur || 'RUB';
+      let r = Rates.get(d, c);
+      if (!r) { Rates.need(d, () => { if (ui.tab === 'an') render(); }); r = Rates.get(today, c) || 0; }
+      sum += (b[a.id] || 0) * r;
+    }
+    return {m, d, v:sum};
+  });
+  // Шкала по реальному диапазону (а не от нуля), чтобы были видны изменения между месяцами
+  const hi = Math.max(...vals.map(x => x.v)), lo0 = Math.min(...vals.map(x => x.v));
+  const lo = lo0 > 0 ? Math.max(0, lo0 - (hi - lo0 || hi * 0.1) * 0.6) : lo0;
+  const hgt = v => hi === lo ? 70 : Math.max(4, (v - lo) / (hi - lo) * 100);
+  const lastV = vals[vals.length - 1], prevV = vals[vals.length - 2];
+  const dv = prevV ? lastV.v - prevV.v : 0;
+  let h = `<h3>Динамика всех денег</h3><div class="card pad">
+    <b style="font-size:17px">${signed(lastV.v)}</b><div class="hint">на ${lastV.d === today ? 'сегодня' : 'конец ' + MONTHS_GEN[+lastV.m.slice(5) - 1].replace(/я$/, 'я')}${prevV ? ` · <span style="color:${dv >= 0 ? 'var(--green)' : 'var(--red)'}">${dv >= 0 ? '+' : '−'}${money(Math.abs(dv))}</span> за месяц` : ''}</div>
+    <div class="wbars">${vals.map(x => `<div class="wcol ${x.m === lastV.m ? 'sel' : ''}" title="${monthLabel(x.m)}: ${signed(x.v)}"><div class="wbar"><i style="height:${hgt(x.v)}%"></i></div><span>${MONTHS_SHORT[+x.m.slice(5) - 1]}</span></div>`).join('')}</div>
+    <div class="hint">Видимые карты, счета, вклады и наличные на последний день каждого месяца. Скрытые не учитываются, валюта — по курсу ЦБ на ту дату.</div></div>`;
+  return h;
+}
+
+/* ===== 5. История категории за 12 месяцев (в окне операций категории) ===== */
+function catHistory(id, tree) {
+  const ids = new Set(tree ? [id, ...childrenOf(id).map(c => c.id)] : [id]), key = ui.anType === 'expense' ? 'exp' : 'inc';
+  const end = ui.anPeriod === 'month' ? ui.anMonth : ui.anMonth.slice(0,4) + '-12';
+  const months = Array.from({length:12}, (_, i) => shiftMonth(end, i - 11));
+  const vals = months.map(m => { const a = analyze(mm => mm === m); return {m, v:Object.entries(a[key]).reduce((s, [k, v]) => ids.has(k) ? s + v : s, 0)}; });
+  const nz = vals.filter(x => x.v > 0), avg = nz.length ? nz.reduce((s, x) => s + x.v, 0) / nz.length : 0;
+  const max = Math.max(...vals.map(x => x.v), 1), col = id === '_none' ? '#5b606b' : catColor(topOf(catById(id)));
+  return `<div class="card pad"><div class="hint">За 12 месяцев${avg ? ` · в среднем ${money(avg)} в месяц` : ''}</div>
+    <div class="wbars">${vals.map(x => `<div class="wcol ${ui.anPeriod === 'month' && x.m === ui.anMonth ? 'sel' : ''}" title="${monthLabel(x.m)}: ${money(x.v)}"><div class="wbar"><i style="height:${x.v > 0 ? Math.max(3, x.v / max * 100) : 0}%;background:${col}"></i></div><span>${MONTHS_SHORT[+x.m.slice(5) - 1]}</span></div>`).join('')}</div></div>`;
 }
 
 /* Круговая диаграмма. segs = [{name, value, color, onclick}] */
@@ -1631,7 +1794,7 @@ function catTx(id, tree) {
         : ((t.type === 'income' && per(t.date.slice(0,7))) || (isIncRefund(t) && per(effMonth(t)))))
       .filter(t => ids.has(catOf(t))).sort(sortTx);
     const name = id === '_none' ? 'Без категории' : (catPath(id) + (!tree && childrenOf(id).length ? ' — общее' : ''));
-    return sheetHead(esc(name)) + `<div class="hint">${periodLabel()}</div>` + (list.length ? groupByDay(list) : '<div class="empty">Нет операций</div>');
+    return sheetHead(esc(name)) + catHistory(id, tree) + `<div class="hint" style="margin:4px 4px 0">Операции · ${periodLabel()}</div>` + (list.length ? groupByDay(list) : '<div class="empty">Нет операций</div>');
   });
 }
 
@@ -1682,7 +1845,7 @@ window.App = {
   toggleHidden(type) { if (typeof ui.showHidden !== 'object' || !ui.showHidden) ui.showHidden = {}; ui.showHidden[type] = !ui.showHidden[type]; render(); },
   toggleAccReorder() { ui.accReorder = !ui.accReorder; render(); }, pickAcc, pickCur,
   toggleReorder() { ui.reorder = !ui.reorder; render(); },
-  pinKey, pinCancel, pinChange, pinOff,
+  pinKey, pinCancel, pinChange, pinOff, editLimit, saveLimit, delLimit,
   useSuggestion, qa, qaToggle(v) { ui.qaOpen = v === undefined ? !ui.qaOpen : v; renderQA(); },
   rk(v) { const d = draft; if (d.rk === v) return; d.rk = v; d.ref = ''; const c = catById(d.cat); if (c && c.type !== catTypeOf(d)) d.cat = ''; showSheet(); },
   refSearch(v) { refQ = v; const el = $('#refList'); if (el) el.innerHTML = refListHtml(); },
