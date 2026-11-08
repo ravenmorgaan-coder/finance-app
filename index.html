@@ -1030,7 +1030,7 @@ function accView(id) {
     if (!shown.length) h += `<div class="empty">До этой даты операций по счету нет</div>`;
     for (const day of shown) {
       const list = D.tx.filter(t => t.date === day.date && (t.acc === id || t.to === id)).sort(sortTx);
-      h += `<div class="day">${dayLabel(day.date)} · остаток <b style="color:var(--text)">${signed(day.end, c)}</b></div><div class="card">${list.map(txRow).join('')}</div>`;
+      h += `<div class="day">${dayLabel(day.date)} · остаток <b style="color:var(--text)">${signed(day.end, c)}</b></div><div class="card">${list.map(t => txRow(t)).join('')}</div>`;
     }
     h += `<div class="hint pad">Начальный остаток: ${signed(+a.initial || 0, c)}</div>`;
     return h;
