@@ -123,6 +123,8 @@ label textarea{resize:vertical}
 .datefield input{position:absolute!important;inset:0;width:100%!important;height:100%;opacity:0;margin:0!important;padding:0!important;border:0!important;cursor:pointer;-webkit-appearance:none;appearance:none}
 .datebar .mini{padding:10px 12px;background:var(--card)}
 .spark{display:block;width:100%;height:120px}
+.intcard{display:flex;gap:12px;align-items:center}
+.intcard b{font-size:15px}
 .donut{padding:16px 14px}
 .dwrap{position:relative;width:210px;max-width:72%;margin:4px auto 14px}
 .dsvg{display:block;width:100%;height:auto}
@@ -339,7 +341,7 @@ const NAME_ICON = {
   'Жилье':'home','Аренда':'key','Коммунальные услуги':'bulb','Интернет и связь':'wifi','Здоровье':'heart','Аптека':'pill','Врачи':'medic','Спорт':'sport',
   'Одежда и обувь':'shirt','Красота':'sparkle','Развлечения':'ticket','Кино и театр':'ticket','Подписки':'play','Хобби':'palette',
   'Путешествия':'suitcase','Отели':'bed','Экскурсии':'pin','Подарки':'gift','Образование':'book','Прочее':'dots',
-  'Зарплата':'briefcase','Аванс':'coins','Основная часть':'briefcase','Премия':'star','Подработка':'laptop','Проценты и кэшбэк':'percent','Проценты по вкладу':'percent','Кэшбэк':'coins',
+  'Зарплата':'briefcase','Аванс':'coins','Основная часть':'briefcase','Премия':'star','Подработка':'laptop','Проценты и кэшбэк':'percent','Проценты по вкладу':'percent','Проценты по счету':'percent','Кэшбэк':'coins',
 };
 const ACC_ICON = {card:'card', account:'account', deposit:'deposit', cash:'cash'};
 const COLORS = ['#8b93ff','#f2a65a','#ff6b8a','#4fd18b','#c08bff','#4cc9d6','#ffd166','#ff8f5a','#6fa8ff','#b5a48b','#e07bd6','#7ed957'];
@@ -496,7 +498,7 @@ function seed() {
   const I = [
     ['💼','Зарплата',['Аванс','Основная часть','Премия']],
     ['💻','Подработка',[]],
-    ['🏦','Проценты и кэшбэк',['Проценты по вкладу','Кэшбэк']],
+    ['🏦','Проценты и кэшбэк',['Проценты по вкладу','Проценты по счету','Кэшбэк']],
     ['🎁','Подарки',[]],
     ['📦','Прочее',[]],
   ];
@@ -719,6 +721,7 @@ function txRow(t, mv) {
   }
   if (t.type === 'expense' || t.type === 'income') { const r = refundedSum(t.id); if (r > 0) extra = `<div class="tag">возвращено ${money(r, '', cur)} · чистый ${t.type === 'expense' ? 'расход' : 'доход'} ${money(t.amount - r, '', cur)}</div>`; }
   if (t.type === 'refund') { const o = t.ref && txById(t.ref); extra = `<div class="tag">${isIncRefund(t) ? 'возврат дохода' : 'возврат'}${o ? ` за «${esc(o.title || catPath(o.cat) || 'операцию')}» от ${shortDate(o.date)} (${money(o.amount, '', curOf(o))})` : ''}</div>`; }
+  if (t.auto === 'int') extra += `<div class="tag" style="color:var(--hint)">начислено автоматически</div>`;
   // Заметки в общем списке не показываем — они видны, когда открываешь операцию
   return `<div class="row" ${mv ? '' : `onclick="App.editTx('${t.id}')"`}>${ico}<div class="mid"><div class="tt">${esc(title)}</div><div class="sub">${sub}</div>${extra}</div><div class="amt ${cls}">${amt}${small ? `<div class="rub">${small}</div>` : ''}</div>${mv || ''}</div>`;
 }
@@ -886,7 +889,7 @@ function viewAcc() {
     <button class="mv" ${i === n - 1 ? 'disabled' : ''} onclick="App.moveAcc('${a.id}',1)" aria-label="Ниже">${icon('down', 18)}</button></div>`;
   const row = (a, i, list) => {
     const c = a.cur || 'RUB', r = Rates.get(date, c);
-    return `<div class="row" ${ro ? '' : `onclick="App.accView('${a.id}')"`}><div class="ic" style="color:${accColor(a)};background:${accColor(a)}22">${icon(ACC_ICON[a.type] || 'card', 20)}</div><div class="mid"><div class="tt">${esc(a.name)}</div>${c !== 'RUB' ? `<div class="sub">${CURS[c].n}</div>` : ''}</div><div class="amt ${b[a.id] < 0 ? 'neg' : ''}">${signed(b[a.id], c)}${c !== 'RUB' && r ? `<div class="rub">≈ ${signed(b[a.id] * r)}</div>` : ''}</div>${mvs(a, i, list.length)}</div>`;
+    return `<div class="row" ${ro ? '' : `onclick="App.accView('${a.id}')"`}><div class="ic" style="color:${accColor(a)};background:${accColor(a)}22">${icon(ACC_ICON[a.type] || 'card', 20)}</div><div class="mid"><div class="tt">${esc(a.name)}</div>${(() => { const n = nextInterest(a); const parts = [c !== 'RUB' ? CURS[c].n : '', n ? `<span class="pos">${dayMonth(n.date)}: ≈ ${money(n.amount, '+', c)}</span>` : ''].filter(Boolean); return parts.length ? `<div class="sub">${parts.join(' · ')}</div>` : ''; })()}</div><div class="amt ${b[a.id] < 0 ? 'neg' : ''}">${signed(b[a.id], c)}${c !== 'RUB' && r ? `<div class="rub">≈ ${signed(b[a.id] * r)}</div>` : ''}</div>${mvs(a, i, list.length)}</div>`;
   };
   let h = `<div class="datebar"><span class="hint">Остатки на</span>${dateField(date, 'App.accDate(this.value)')}${!isToday ? `<button class="mini" onclick="App.accDate('')">Сегодня</button>` : ''}
     <button class="mv tall ${ro ? 'on' : ''}" onclick="App.toggleAccReorder()" aria-label="Изменить порядок">${icon('sort', 20)}</button></div>
@@ -920,13 +923,95 @@ function viewAcc() {
 
 /* История счета: остаток на любую дату, график и операции по дням */
 function spark(vals, days) {
-  const w = 300, hgt = 110, p = 6, min = Math.min(...vals, 0), max = Math.max(...vals, 0), rng = (max - min) || 1;
+  const w = 300, hgt = 110, p = 6;
+  // шкала по реальному диапазону остатка (а не от нуля), чтобы были видны изменения; ноль — только если остаток уходил в минус
+  let min = Math.min(...vals), max = Math.max(...vals);
+  if (min < 0 && max > 0) { /* оставляем как есть, линия нуля будет видна */ } else { const padv = (max - min) * 0.15 || Math.abs(max) * 0.05 || 1; min -= padv; max += padv; }
+  const rng = (max - min) || 1;
   const x = i => p + i * (w - 2 * p) / (vals.length - 1), y = v => p + (max - v) * (hgt - 2 * p) / rng;
   const pts = vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
   const zero = min < 0 ? `<line x1="0" x2="${w}" y1="${y(0)}" y2="${y(0)}" stroke="var(--hint)" stroke-dasharray="3 3"/>` : '';
   return `<svg class="spark" viewBox="0 0 ${w} ${hgt}" preserveAspectRatio="none">${zero}<polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>
     <div class="legend" style="justify-content:space-between;margin:4px 0 0"><span>${shortDate(days[0])}</span><span>${shortDate(days[days.length - 1])}</span></div>`;
 }
+/* ================= Проценты на остаток =================
+   У счета: int = {rate: % годовых, open: дата открытия, since: с какой даты начислять, skip: [даты, которые вы удалили]}.
+   Каждый месяц в число открытия (в коротких месяцах — в последний день) создается доход «Проценты: …».
+   Расчет: по остатку на конец каждого дня × ставка / 365 (в високосный год / 366), с капитализацией. */
+const addMonthsClamp = (ds, k) => {
+  const y = +ds.slice(0,4), m = +ds.slice(5,7) - 1 + k, d = +ds.slice(8,10);
+  const Y = y + Math.floor(m / 12), M = ((m % 12) + 12) % 12, last = new Date(Y, M + 1, 0).getDate();
+  return `${Y}-${pad(M + 1)}-${pad(Math.min(d, last))}`;
+};
+const hasInterest = a => a && (a.type === 'account' || a.type === 'deposit');   // проценты — только у счетов и вкладов
+const dayMonth = ds => `${+ds.slice(8,10)} ${MONTHS_GEN[+ds.slice(5,7) - 1]}`;
+// Проценты за дни [start, end) по ежедневному остатку
+function intAmount(a, start, end) {
+  const hist = accHistory(a.id), d = new Date(start + 'T12:00:00');
+  let sum = 0;
+  while (dateStr(d) < end) {
+    const y = d.getFullYear(), yd = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0 ? 366 : 365;
+    const bal = balanceOn(hist, a.initial, dateStr(d));
+    if (bal > 0) sum += bal * a.int.rate / 100 / yd;
+    d.setDate(d.getDate() + 1);
+  }
+  return r2(sum);
+}
+// Ближайшее начисление: дата и примерная сумма (будущие дни — по текущему остатку)
+function nextInterest(a) {
+  const I = a.int; if (!hasInterest(a) || !I || !(I.rate > 0) || !I.open || a.archived) return null;
+  const today = todayStr(); let k = 1, pd;
+  while ((pd = addMonthsClamp(I.open, k)) <= today) k++;
+  return {date:pd, amount:intAmount(a, addMonthsClamp(I.open, k - 1), pd)};
+}
+// Категория для начисления: по вкладу — «Проценты по вкладу», по счету (и картам, наличным) — «Проценты по счету».
+// Если такой категории нет, она создается рядом с «Проценты по вкладу» (в «Проценты и кэшбэк»).
+function interestCat(a) {
+  const want = a.type === 'deposit' ? 'Проценты по вкладу' : 'Проценты по счету';
+  const norm = x => noYo(x).trim().toLowerCase();
+  // Ищем вашу категорию по началу названия: «Проценты по счету», «Проценты по счетам», «проценты по вкладам» — все подойдет
+  const re = a.type === 'deposit' ? /^проценты по вклад/ : /^проценты по сч[её]т/;
+  let c = D.cats.find(x => x.type === 'income' && norm(x.name) === norm(want)) || D.cats.find(x => x.type === 'income' && re.test(norm(x.name)));
+  if (c) return c;
+  const sib = D.cats.find(x => x.type === 'income' && /^проценты по /.test(norm(x.name)));
+  const parent = sib && sib.parent ? catById(sib.parent) : D.cats.find(x => x.type === 'income' && !x.parent && /процент/.test(norm(x.name)));
+  c = {id:uid(), type:'income', name:want, icon:'percent'};
+  if (parent) { c.parent = parent.id; c.order = childrenOf(parent.id).reduce((m, x) => Math.max(m, catOrd(x)), -1) + 1; }
+  else { c.color = COLORS[2]; c.order = parents('income').reduce((m, x) => Math.max(m, catOrd(x)), -1) + 1; }
+  D.cats.push(c); syncColl('cats', [c]);
+  return c;
+}
+let genBusy = false;
+async function generateInterest() {
+  if (genBusy) return; genBusy = true;
+  try {
+    const today = todayStr(), puts = [];
+    for (const a of D.accounts) {
+      const I = a.int; if (!hasInterest(a) || !I || !(I.rate > 0) || !I.open || a.archived) continue;
+      for (let k = 1; k < 1200; k++) {
+        const pd = addMonthsClamp(I.open, k);
+        if (pd > today) break;
+        if (pd <= (I.since || '')) continue;                       // до включения функции — не начисляем
+        const id = `int_${a.id}_${pd.replace(/-/g, '')}`;          // одинаковый id на всех устройствах — без дублей
+        if (txById(id) || (I.skip || []).includes(pd)) continue;
+        const amt = intAmount(a, addMonthsClamp(I.open, k - 1), pd);
+        if (!(amt > 0)) continue;
+        const t = {id, type:'income', date:pd, amount:amt, acc:a.id, auto:'int', title:'Проценты: ' + a.name};
+        t.cat = interestCat(a).id;
+        const cur = a.cur || 'RUB';
+        if (cur !== 'RUB') {
+          let r = Rates.get(pd, cur);
+          if (!r) { try { await Rates.load(pd); r = Rates.get(pd, cur); } catch (e) {} }
+          if (!r) continue;                                         // нет курса — начислим при следующем открытии
+          t.cur = cur; t.rub = r2(amt * r);
+        }
+        D.tx.push(t); puts.push(t);                                 // сразу в список — следующий месяц считается с капитализацией
+      }
+    }
+    if (puts.length) { syncTx(puts); render(); toast(puts.length === 1 ? 'Начислены проценты' : `Начислены проценты: ${puts.length}`); }
+  } finally { genBusy = false; }
+}
+
 function accView(id) {
   openSheet(() => {
     const a = accById(id); if (!a) return sheetHead('Счет') + '<div class="empty">Счет удален</div>';
@@ -938,6 +1023,7 @@ function accView(id) {
     let h = sheetHead(esc(a.name)) +
       `<div class="datebar"><span class="hint">Остаток на</span>${dateField(date, 'App.histDate(this.value)')}${date < todayStr() ? `<button class="mini" onclick="App.histDate('')">Сегодня</button>` : ''}</div>
       <div class="card big"><span class="hint">На конец дня ${dayLabel(date)}</span><b>${signed(bal, c)}</b>${c !== 'RUB' && r ? `<div class="hint">≈ ${signed(bal * r)} по курсу ЦБ</div>` : ''}</div>
+      ${(() => { const n = nextInterest(a); return n ? `<div class="card pad intcard"><div class="ic" style="color:var(--green);background:#4fd18b22">${icon('percent', 20)}</div><div><b>${dayMonth(n.date)} будет зачислено ≈ ${money(n.amount, '+', c)}</b><div class="hint">Ставка ${NF.format(a.int.rate)}% годовых · начисление ${+a.int.open.slice(8,10)}-го числа каждого месяца. Сумма примерная: считается по текущему остатку.</div></div></div>` : ''; })()}
       <div class="card pad"><div class="hint">Остаток за 60 дней</div>${spark(vals, days)}</div>
       <button class="btn sec" onclick="App.editAcc('${id}')">Изменить счет</button>`;
     const shown = hist.filter(x => x.date <= date).reverse().slice(0, 120);
@@ -1267,6 +1353,7 @@ function saveTx() {
   if (d.note.trim()) t.note = d.note.trim();
   const prev = d.id && txById(d.id);
   if (prev && prev.date === t.date && prev.pos != null) t.pos = prev.pos;   // место внутри дня сохраняется при редактировании
+  if (prev && prev.auto) t.auto = prev.auto;   // автоначисление остается помеченным и после правки
   const i = D.tx.findIndex(x => x.id === t.id);
   const oldM = i >= 0 ? D.tx[i].date.slice(0,7) : null;
   if (i >= 0) D.tx[i] = t; else D.tx.push(t);
@@ -1281,13 +1368,15 @@ async function delTx() {
   if (!await ask(r ? 'Удалить покупку? Привязанные к ней возвраты останутся, но будут считаться отдельно.' : 'Удалить операцию?')) return;
   D.tx = D.tx.filter(x => x.id !== t.id);
   syncTx([], [[t.id, t.date.slice(0,7)]]); haptic('warning');
+  if (t.auto === 'int') { const a = accById(t.acc); if (a && a.int) { a.int.skip = [...(a.int.skip || []), t.date]; syncColl('accounts', [a]); } }
   back(); render();
 }
 
 /* ================= Счета ================= */
 function editAcc(id) {
   const a = id ? accById(id) : null;
-  draft = {id:a ? a.id : null, name:a ? a.name : '', type:a ? a.type : 'card', cur:a ? a.cur || 'RUB' : 'RUB', initial:a ? String(a.initial || 0) : '', archived:!!(a && a.archived), color:a ? accColor(a) : COLORS[D.accounts.length % COLORS.length]};
+  draft = {id:a ? a.id : null, name:a ? a.name : '', type:a ? a.type : 'card', cur:a ? a.cur || 'RUB' : 'RUB', initial:a ? String(a.initial || 0) : '', archived:!!(a && a.archived), color:a ? accColor(a) : COLORS[D.accounts.length % COLORS.length],
+    intOn:!!(a && a.int), intRate:a && a.int ? String(a.int.rate) : '', intOpen:a && a.int ? a.int.open : ''};
   openSheet(accForm);
 }
 function accForm() {
@@ -1300,6 +1389,10 @@ function accForm() {
     ${used ? '<div class="hint pad">Валюту нельзя поменять: по счету уже есть операции.</div>' : ''}
     <label>Начальный остаток, ${CURS[d.cur].s}<input inputmode="decimal" value="${esc(d.initial)}" placeholder="0" oninput="App.d('initial',this.value)"></label>
     <div class="hint pad">Сколько денег было на счете до первой операции в приложении. Дальше баланс на любую дату считается сам.</div>
+    ${hasInterest(d) ? `<label class="check" style="margin-top:14px"><input type="checkbox" ${d.intOn ? 'checked' : ''} onchange="App.dr('intOn',this.checked)"> Начислять проценты на остаток</label>` : ''}
+    ${hasInterest(d) && d.intOn ? `<div class="amtrow"><label>% годовых<input inputmode="decimal" value="${esc(d.intRate)}" placeholder="16" oninput="App.d('intRate',this.value)"></label>
+      <label style="width:170px;flex:none">Дата открытия${dateField(d.intOpen, "App.dr('intOpen',this.value)")}</label></div>
+      <div class="hint pad">Каждый месяц ${d.intOpen ? `<b>${+d.intOpen.slice(8,10)}-го числа</b>` : 'в число открытия'} приложение само добавит доход «Проценты: ${esc(d.name || 'счет')}». Сумма считается по остатку на каждый день: ставка ÷ 365, с учетом уже начисленных процентов. Начисления начнутся со следующей даты — прошлые месяцы не добавляются. Автоначисление можно поправить или удалить, как обычную операцию.</div>` : ''}
     ${d.id ? `<label class="check"><input type="checkbox" ${d.archived ? 'checked' : ''} onchange="App.d('archived',this.checked)"> В архиве — скрыть из списков (например, закрытый вклад)</label>` : ''}
     <button class="btn" onclick="App.saveAcc()">Сохранить</button>
     ${d.id ? `<button class="btn danger" onclick="App.delAcc()">Удалить счет</button>` : ''}`;
@@ -1315,9 +1408,18 @@ function saveAcc() {
   else if (!old || old.type !== a.type) a.order = D.accounts.filter(x => x.type === a.type && x.id !== a.id).reduce((m, x) => Math.max(m, accOrd(x)), -1) + 1;
   if (d.cur && d.cur !== 'RUB') a.cur = d.cur;
   if (d.archived) a.archived = true;
+  if (d.intOn && hasInterest(a)) {
+    const rate = parseAmount(d.intRate);
+    if (!(rate > 0)) return toast('Укажите процент годовых');
+    if (!d.intOpen) return toast('Укажите дату открытия счета');
+    const oi = old && old.int;
+    a.int = {rate:r2(rate), open:d.intOpen, since:oi && oi.since ? oi.since : todayStr()};
+    if (oi && oi.skip && oi.skip.length) a.int.skip = oi.skip;
+  }
   const i = D.accounts.findIndex(x => x.id === a.id);
   if (i >= 0) D.accounts[i] = a; else D.accounts.push(a);
   syncColl('accounts', [a]); haptic('success'); back(); render();
+  if (a.int) generateInterest();
 }
 async function delAcc() {
   const id = draft.id;
@@ -1484,7 +1586,8 @@ async function init() {
   }
   render();
   // Вернулись в приложение (с другого устройства могли что-то добавить) — подтягиваем свежие данные
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reloadAll(); });
+  generateInterest();
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reloadAll().then(generateInterest); });
   if (IN_TG) { try { TG.onEvent('activated', reloadAll); } catch (e) {} }
 }
 init();
