@@ -1035,7 +1035,7 @@ function accView(id) {
     let h = sheetHead(esc(a.name)) +
       `<div class="datebar"><span class="hint">Остаток на</span>${dateField(date, 'App.histDate(this.value)')}${date < todayStr() ? `<button class="mini" onclick="App.histDate('')">Сегодня</button>` : ''}</div>
       <div class="card big"><span class="hint">На конец дня ${dayLabel(date)}</span><b>${signed(bal, c)}</b>${c !== 'RUB' && r ? `<div class="hint">≈ ${signed(bal * r)} по курсу ЦБ</div>` : ''}</div>
-      ${(() => { const n = nextInterest(a); return n ? `<div class="card pad intcard"><div class="ic" style="color:var(--green);background:#4fd18b22">${icon('percent', 20)}</div><div><b style="color:${bigInterest(n, c) ? 'var(--green)' : 'var(--text)'}">${dayMonth(n.date)} будет зачислено ≈ ${money(n.amount, '+', c)}</b><div class="hint">Ставка ${NF.format(a.int.rate)}% годовых · начисление ${+a.int.open.slice(8,10)}-го числа каждого месяца. Сумма примерная: считается по текущему остатку.</div></div></div>` : ''; })()}
+      ${(() => { const n = nextInterest(a); return n ? `<div class="card pad intcard"><div class="ic" style="color:var(--green);background:#4fd18b22">${icon('percent', 20)}</div><div><b style="color:${bigInterest(n, c) ? 'var(--green)' : 'var(--text)'}">${dayMonth(n.date)} будет зачислено ≈ ${money(n.amount, '+', c)}</b><div class="hint">Ставка ${NF.format(a.int.rate)}% годовых</div></div></div>` : ''; })()}
       <div class="card pad"><div class="hint">Остаток за 60 дней</div>${spark(vals, days)}</div>
       <button class="btn sec" onclick="App.editAcc('${id}')">Изменить счет</button>`;
     const shown = hist.filter(x => x.date <= date).reverse().slice(0, 120);
