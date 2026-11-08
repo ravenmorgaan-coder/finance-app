@@ -735,15 +735,33 @@ function viewOps() {
   const a = analyze(m => m === ui.month);
   return `${monthNav('App.opsMonth(-1)', 'App.opsMonth(1)', monthLabel(ui.month))}
     ${summary(a)}
-    <div class="sbar"><div class="searchbox">${icon('search', 18)}<input class="search" type="search" placeholder="Поиск по названию и заметкам" value="${esc(ui.search)}" oninput="App.search(this.value)"></div>
+    <div class="sbar"><div class="searchbox">${icon('search', 18)}<input class="search" type="search" placeholder="Название, заметка или сумма" value="${esc(ui.search)}" oninput="App.search(this.value)"></div>
       <button class="mv tall ${ui.reorder ? 'on' : ''}" onclick="App.toggleReorder()" aria-label="Изменить порядок">${icon('sort', 20)}</button></div>
     <div class="chips">${[['all','Все'],['expense','Расходы'],['income','Доходы'],['transfer','Переводы'],['refund','Возвраты']].map(([k, l]) => `<button class="chip ${ui.filter === k ? 'on' : ''}" onclick="App.set('filter','${k}')">${l}</button>`).join('')}</div>
     <div id="opsList"></div>`;
 }
+/* Поиск операции: по словам из названия, заметки, категории и по сумме.
+   «1 500», «1500», «1500,5» — числа ищутся по сумме (в валюте операции, в рублях, на счете зачисления). */
+function txMatcher(query) {
+  const words = noYo(query).toLowerCase().replace(/(\d)[\s\u00a0]+(?=\d)/g, '$1').split(/\s+/).filter(Boolean);
+  if (!words.length) return null;
+  const isNum = w => /^-?\d+([.,]\d*)?$/.test(w);
+  const amounts = t => [t.amount, t.rub, t.amount2, t.accAmt].filter(v => v != null).map(v => String(Math.abs(v)));
+  return t => {
+    const hay = noYo([t.title, t.note, catPath(t.cat)].join(' ')).toLowerCase();
+    return words.every(w => {
+      if (hay.includes(w)) return true;
+      if (!isNum(w)) return false;
+      const n = String(Math.abs(parseFloat(w.replace(',', '.'))));   // «1500,50» → «1500.5»
+      return amounts(t).some(a => a === n || a.startsWith(n));
+    });
+  };
+}
 function renderOpsList() {
   const q = ui.search.trim().toLowerCase();
+  const match = txMatcher(q);
   const list = D.tx.filter(t =>
-    (q ? [t.title, t.note, catPath(t.cat)].join(' ').toLowerCase().includes(q) : t.date.slice(0,7) === ui.month) &&
+    (match ? match(t) : t.date.slice(0,7) === ui.month) &&
     (ui.filter === 'all' || t.type === ui.filter)).sort(sortTx);
   const reorder = ui.reorder && !q;
   $('#opsList').innerHTML = (q ? `<div class="hint pad">Поиск по всем месяцам: ${list.length}</div>` : '') +
@@ -816,6 +834,21 @@ function donut(groups, type) {
     `<span class="hint">${title}</span><b>${money(total)}</b>`, `${segs.length} ${plural(segs.length, 'категория', 'категории', 'категорий')}`);
 }
 // Цвет счета — по порядку в списке
+// Порядок счетов внутри своей группы (Карты, Счета, Вклады, Наличные) — поле order, меняется стрелками
+const accOrd = a => a.order ?? (1e6 + D.accounts.indexOf(a));
+const accSorted = list => list.slice().sort((a, b) => (Object.keys(ACC_TYPES).indexOf(a.type) - Object.keys(ACC_TYPES).indexOf(b.type)) || (accOrd(a) - accOrd(b)));  // по группам, внутри — ваш порядок
+function moveAcc(id, dir) {
+  const a = accById(id); if (!a) return;
+  const sibs = accSorted(D.accounts.filter(x => x.type === a.type && !!x.archived === !!a.archived));
+  const i = sibs.indexOf(a), j = i + dir;
+  if (j < 0 || j >= sibs.length) return;
+  [sibs[i], sibs[j]] = [sibs[j], sibs[i]];
+  const puts = [];
+  sibs.forEach((x, k) => { if (x.order !== k) { x.order = k; puts.push(x); } });
+  if (puts.length) syncColl('accounts', puts);
+  try { IN_TG && TG.HapticFeedback.selectionChanged(); } catch (_) {}
+  render();
+}
 // Цвет счета: выбранный вручную, иначе — по порядку в списке
 const accColor = a => (a && a.color) || COLORS[Math.max(0, D.accounts.indexOf(a)) % COLORS.length];
 const accIc = (a, size = 20) => `<div class="ic" style="color:${accColor(a)};background:${accColor(a)}22">${icon(ACC_ICON[a.type] || 'card', size)}</div>`;
@@ -823,16 +856,21 @@ const accIc = (a, size = 20) => `<div class="ic" style="color:${accColor(a)};bac
 function viewAcc() {
   const date = ui.accDate, isToday = date >= todayStr();
   const b = balances(date);
-  const act = D.accounts.filter(a => !a.archived), arch = D.accounts.filter(a => a.archived);
+  const act = accSorted(D.accounts.filter(a => !a.archived)), arch = accSorted(D.accounts.filter(a => a.archived));
+  const ro = ui.accReorder;
   let missing = false;
   const total = act.reduce((s, a) => { const r = Rates.get(date, a.cur || 'RUB'); if (!r) { missing = true; return s; } return s + b[a.id] * r; }, 0);
   if (missing) Rates.need(date, () => { if (ui.tab === 'acc') render(); });
   const hasFx = act.some(a => (a.cur || 'RUB') !== 'RUB');
-  const row = a => {
+  const mvs = (a, i, n) => !ro ? '' : `<div class="mvs" style="margin-left:2px">
+    <button class="mv" ${i === 0 ? 'disabled' : ''} onclick="App.moveAcc('${a.id}',-1)" aria-label="Выше">${icon('up', 18)}</button>
+    <button class="mv" ${i === n - 1 ? 'disabled' : ''} onclick="App.moveAcc('${a.id}',1)" aria-label="Ниже">${icon('down', 18)}</button></div>`;
+  const row = (a, i, list) => {
     const c = a.cur || 'RUB', r = Rates.get(date, c);
-    return `<div class="row" onclick="App.accView('${a.id}')"><div class="ic" style="color:${accColor(a)};background:${accColor(a)}22">${icon(ACC_ICON[a.type] || 'card', 20)}</div><div class="mid"><div class="tt">${esc(a.name)}</div>${c !== 'RUB' ? `<div class="sub">${CURS[c].n}</div>` : ''}</div><div class="amt ${b[a.id] < 0 ? 'neg' : ''}">${signed(b[a.id], c)}${c !== 'RUB' && r ? `<div class="rub">≈ ${signed(b[a.id] * r)}</div>` : ''}</div></div>`;
+    return `<div class="row" ${ro ? '' : `onclick="App.accView('${a.id}')"`}><div class="ic" style="color:${accColor(a)};background:${accColor(a)}22">${icon(ACC_ICON[a.type] || 'card', 20)}</div><div class="mid"><div class="tt">${esc(a.name)}</div>${c !== 'RUB' ? `<div class="sub">${CURS[c].n}</div>` : ''}</div><div class="amt ${b[a.id] < 0 ? 'neg' : ''}">${signed(b[a.id], c)}${c !== 'RUB' && r ? `<div class="rub">≈ ${signed(b[a.id] * r)}</div>` : ''}</div>${mvs(a, i, list.length)}</div>`;
   };
-  let h = `<div class="datebar"><span class="hint">Остатки на</span>${dateField(date, 'App.accDate(this.value)')}${!isToday ? `<button class="mini" onclick="App.accDate('')">Сегодня</button>` : ''}</div>
+  let h = `<div class="datebar"><span class="hint">Остатки на</span>${dateField(date, 'App.accDate(this.value)')}${!isToday ? `<button class="mini" onclick="App.accDate('')">Сегодня</button>` : ''}
+    <button class="mv tall ${ro ? 'on' : ''}" onclick="App.toggleAccReorder()" aria-label="Изменить порядок">${icon('sort', 20)}</button></div>
     <div class="card big"><span class="hint">${isToday ? 'Всего денег сейчас' : 'Всего денег на конец дня ' + dayLabel(date)}</span><b>${missing ? '…' : signed(total)}</b>${hasFx ? `<div class="hint">Валюта пересчитана в рубли по курсу ЦБ${isToday ? '' : ' на эту дату'}</div>` : ''}</div>`;
   if (!missing) {
     // Все карты, счета, вклады и наличные (кроме архивных)
@@ -844,11 +882,12 @@ function viewAcc() {
       'все вместе') +
       `<div class="hint" style="margin:-4px 4px 12px">В кольце: ${parts.join(' · ')}.${neg ? ' Счета с минусом (например, кредитка) в кольцо не входят.' : ''}</div>`;
   }
+  if (ro) h += `<div class="hint" style="margin:0 4px 4px">Стрелки меняют порядок внутри группы. Нажмите ${icon('sort', 14).replace('class="i"', 'class="i" style="display:inline;vertical-align:-2px"')} еще раз, чтобы закончить.</div>`;
   for (const [type, label] of Object.entries(ACC_TYPES)) {
     const list = act.filter(a => a.type === type);
     if (list.length) h += `<div class="day">${label}</div><div class="card">${list.map(row).join('')}</div>`;
   }
-  h += `<div class="hint" style="margin:-4px 4px 0">Нажмите на счет, чтобы увидеть остаток по дням.</div>
+  h += `<div class="hint" style="margin:-4px 4px 0">${ro ? '' : 'Нажмите на счет, чтобы увидеть остаток по дням.'}</div>
     <button class="btn" onclick="App.editAcc()">+ Добавить карту, счет или вклад</button>`;
   if (arch.length) h += `<div class="day">В архиве</div><div class="card">${arch.map(row).join('')}</div>`;
   h += `<div class="day">Данные</div><div class="card pad">
@@ -965,7 +1004,7 @@ function pick(i) { const p = _pick; if (!p) return; const v = p.items[i].v; back
 
 function pickAcc(field) {
   const b = balances(), sel = draft[field];
-  const list = D.accounts.filter(a => !a.archived || a.id === sel);
+  const list = accSorted(D.accounts.filter(a => !a.archived || a.id === sel));
   openPicker(field === 'to' ? 'Куда' : 'Счет', list.map(a => ({v:a.id, label:esc(a.name), sub:`${ACC_TYPE_ONE[a.type]} · ${signed(b[a.id] || 0, a.cur || 'RUB')}`, ic:accIc(a)})), sel, v => df(field, v));
 }
 function pickCur(target) {
@@ -980,9 +1019,8 @@ function pickAccType() {
 let refQ = '';
 function refListHtml() {
   const kind = draft.rk === 'income' ? 'income' : 'expense';
-  const words = noYo(refQ).toLowerCase().split(/\s+/).filter(Boolean);
-  const hay = t => noYo([t.title, catPath(t.cat), t.note, String(t.amount)].join(' ')).toLowerCase();
-  const list = D.tx.filter(t => t.type === kind && words.every(w => hay(t).includes(w))).sort(sortTx);
+  const match = txMatcher(refQ), words = match ? [1] : [];
+  const list = D.tx.filter(t => t.type === kind && (!match || match(t))).sort(sortTx);
   const sel = draft.ref;
   let h = '<div class="card">';
   if (!words.length) h += `<div class="row prow ${!sel ? 'on' : ''}" onclick="App.pickRefId('')"><div class="ic">${icon('none', 20)}</div><div class="mid"><div class="tt">Не привязывать</div></div>${!sel ? `<span class="chk">${icon('check', 20)}</span>` : ''}</div>`;
@@ -996,7 +1034,7 @@ function refListHtml() {
 function pickRefTx() {
   refQ = '';
   openSheet(() => sheetHead(draft.rk === 'income' ? 'Какой доход вернули' : 'Какую покупку вернули') +
-    `<div class="searchbox">${icon('search', 18)}<input class="search" type="search" placeholder="Название или категория" value="${esc(refQ)}" oninput="App.refSearch(this.value)"></div>
+    `<div class="searchbox">${icon('search', 18)}<input class="search" type="search" placeholder="Название, категория или сумма" value="${esc(refQ)}" oninput="App.refSearch(this.value)"></div>
     <div id="refList" style="min-height:70vh">${refListHtml()}</div>`);
 }
 function pickParent() {
@@ -1234,6 +1272,9 @@ function saveAcc() {
   const init = d.initial === '' ? 0 : parseAmount(d.initial);
   if (isNaN(init)) return toast('Проверьте начальный остаток');
   const a = {id:d.id || uid(), name:d.name.trim(), type:d.type, initial:r2(init), color:d.color};
+  const old = d.id && accById(d.id);
+  if (old && old.type === a.type && old.order != null) a.order = old.order;
+  else if (!old || old.type !== a.type) a.order = D.accounts.filter(x => x.type === a.type && x.id !== a.id).reduce((m, x) => Math.max(m, accOrd(x)), -1) + 1;
   if (d.cur && d.cur !== 'RUB') a.cur = d.cur;
   if (d.archived) a.archived = true;
   const i = D.accounts.findIndex(x => x.id === a.id);
@@ -1353,7 +1394,8 @@ async function doRestore() {
 /* ================= Связка с кнопками ================= */
 window.App = {
   newTx, editTx, saveTx, delTx, dtype, pickRef, df, accView,
-  moveCat, moveTx, pick, pickAcc, pickCur,
+  moveCat, moveTx, moveAcc, pick,
+  toggleAccReorder() { ui.accReorder = !ui.accReorder; render(); }, pickAcc, pickCur,
   toggleReorder() { ui.reorder = !ui.reorder; render(); },
   rk(v) { const d = draft; if (d.rk === v) return; d.rk = v; d.ref = ''; const c = catById(d.cat); if (c && c.type !== catTypeOf(d)) d.cat = ''; showSheet(); },
   refSearch(v) { refQ = v; const el = $('#refList'); if (el) el.innerHTML = refListHtml(); },
