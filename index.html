@@ -93,6 +93,7 @@ label textarea{resize:vertical}
 .mv:active{background:var(--accent);color:var(--accent-text)}
 .mv:disabled{opacity:.2;cursor:default}
 .mv.add{color:var(--accent)}
+.hidrow .tt{color:var(--hint)}
 .sbar{display:flex;gap:8px;align-items:stretch;margin-bottom:10px}
 .sbar .searchbox{flex:1;margin-bottom:0}
 .mv.tall{width:46px;height:auto;min-height:44px;background:var(--card);border:1px solid var(--line);color:var(--hint)}
@@ -280,6 +281,7 @@ const ICONS = {
   none:'<circle cx="12" cy="12" r="7" stroke-dasharray="3 3"/>',
   cal:'<rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M9 3v4M15 3v4"/>',
   down:'<path d="M7 10l5 5 5-5"/>',
+  eyeoff:'<path d="M3 3l18 18M10.6 6.1A9.8 9.8 0 0112 6c5 0 8.5 4 9.5 6-.4.9-1.3 2.2-2.5 3.4M6.6 6.6C4.4 8 3 10.1 2.5 12c1 2 4.5 6 9.5 6 1.6 0 3-.4 4.3-1M9.9 9.9a3 3 0 004.2 4.2"/>',
   up:'<path d="M7 14l5-5 5 5"/>',
   bolt:'<path d="M13 3L5 13.5h6L10 21l8-10.5h-6z"/>',
   top:'<path d="M6 4h12M12 20V9M7 13l5-5 5 5"/>',
@@ -878,6 +880,7 @@ const accIc = (a, size = 20) => `<div class="ic" style="color:${accColor(a)};bac
 function viewAcc() {
   const date = ui.accDate, isToday = date >= todayStr();
   const b = balances(date);
+  // act — видимые (участвуют в «Всего денег» и кольце), arch — скрытые (не участвуют, но работают как обычно)
   const act = accSorted(D.accounts.filter(a => !a.archived)), arch = accSorted(D.accounts.filter(a => a.archived));
   const ro = ui.accReorder;
   let missing = false;
@@ -889,13 +892,13 @@ function viewAcc() {
     <button class="mv" ${i === n - 1 ? 'disabled' : ''} onclick="App.moveAcc('${a.id}',1)" aria-label="Ниже">${icon('down', 18)}</button></div>`;
   const row = (a, i, list) => {
     const c = a.cur || 'RUB', r = Rates.get(date, c);
-    return `<div class="row" ${ro ? '' : `onclick="App.accView('${a.id}')"`}><div class="ic" style="color:${accColor(a)};background:${accColor(a)}22">${icon(ACC_ICON[a.type] || 'card', 20)}</div><div class="mid"><div class="tt">${esc(a.name)}</div>${(() => { const n = nextInterest(a); const parts = [c !== 'RUB' ? CURS[c].n : '', n ? `<span class="pos">${dayMonth(n.date)}: ≈ ${money(n.amount, '+', c)}</span>` : ''].filter(Boolean); return parts.length ? `<div class="sub">${parts.join(' · ')}</div>` : ''; })()}</div><div class="amt ${b[a.id] < 0 ? 'neg' : ''}">${signed(b[a.id], c)}${c !== 'RUB' && r ? `<div class="rub">≈ ${signed(b[a.id] * r)}</div>` : ''}</div>${mvs(a, i, list.length)}</div>`;
+    return `<div class="row" ${ro ? '' : `onclick="App.accView('${a.id}')"`}><div class="ic" style="color:${accColor(a)};background:${accColor(a)}22">${icon(ACC_ICON[a.type] || 'card', 20)}</div><div class="mid"><div class="tt">${esc(a.name)}</div>${(() => { const n = nextInterest(a); const parts = [c !== 'RUB' ? CURS[c].n : '', n ? `<span style="color:${bigInterest(n, c) ? 'var(--green)' : 'var(--text)'}">${dayMonth(n.date)}: ≈ ${money(n.amount, '+', c)}</span>` : ''].filter(Boolean); return parts.length ? `<div class="sub">${parts.join(' · ')}</div>` : ''; })()}</div><div class="amt ${b[a.id] < 0 ? 'neg' : ''}">${signed(b[a.id], c)}${c !== 'RUB' && r ? `<div class="rub">≈ ${signed(b[a.id] * r)}</div>` : ''}</div>${mvs(a, i, list.length)}</div>`;
   };
   let h = `<div class="datebar"><span class="hint">Остатки на</span>${dateField(date, 'App.accDate(this.value)')}${!isToday ? `<button class="mini" onclick="App.accDate('')">Сегодня</button>` : ''}
     <button class="mv tall ${ro ? 'on' : ''}" onclick="App.toggleAccReorder()" aria-label="Изменить порядок">${icon('sort', 20)}</button></div>
     <div class="card big"><span class="hint">${isToday ? 'Всего денег сейчас' : 'Всего денег на конец дня ' + dayLabel(date)}</span><b>${missing ? '…' : signed(total)}</b>${hasFx ? `<div class="hint">Валюта пересчитана в рубли по курсу ЦБ${isToday ? '' : ' на эту дату'}</div>` : ''}</div>`;
   if (!missing) {
-    // Все карты, счета, вклады и наличные (кроме архивных)
+    // Все карты, счета, вклады и наличные (кроме скрытых)
     const segs = act.map(a => ({name:a.name, value:b[a.id] * (Rates.get(date, a.cur || 'RUB') || 0), amt:signed(b[a.id], a.cur || 'RUB'), color:accColor(a), onclick:`App.accView('${a.id}')`}));
     const inRing = act.filter(a => b[a.id] > 0), neg = act.filter(a => b[a.id] < 0).length;
     const T = {card:['карта','карты','карт'], account:['счет','счета','счетов'], deposit:['вклад','вклада','вкладов']};
@@ -905,13 +908,20 @@ function viewAcc() {
       `<div class="hint" style="margin:-4px 4px 12px">В кольце: ${parts.join(' · ')}.${neg ? ' Счета с минусом (например, кредитка) в кольцо не входят.' : ''}</div>`;
   }
   if (ro) h += `<div class="hint" style="margin:0 4px 4px">Стрелки меняют порядок внутри группы. Нажмите ${icon('sort', 14).replace('class="i"', 'class="i" style="display:inline;vertical-align:-2px"')} еще раз, чтобы закончить.</div>`;
+  // Каждая группа: видимые счета, а внизу группы — свернутая строка «Скрытые …» этого же типа
+  const HID = {card:'Скрытые карты', account:'Скрытые счета', deposit:'Скрытые вклады', cash:'Скрытые наличные'};
+  if (typeof ui.showHidden !== 'object' || !ui.showHidden) ui.showHidden = {};
   for (const [type, label] of Object.entries(ACC_TYPES)) {
-    const list = act.filter(a => a.type === type);
-    if (list.length) h += `<div class="day">${label}</div><div class="card">${list.map(row).join('')}</div>`;
+    const list = act.filter(a => a.type === type), hid = arch.filter(a => a.type === type);
+    if (!list.length && !hid.length) continue;
+    const open = ui.showHidden[type] || ro;
+    h += `<div class="day">${label}</div><div class="card">${list.map(row).join('')}`;
+    if (hid.length) h += `<div class="row hidrow" onclick="App.toggleHidden('${type}')"><div class="ic">${icon('eyeoff', 20)}</div><div class="mid"><div class="tt">${HID[type]}</div><div class="sub">${hid.length} · не входят в «Всего денег»</div></div><span class="hint">${icon(open ? 'up' : 'down', 18)}</span></div>
+      ${open ? hid.map(row).join('') : ''}`;
+    h += '</div>';
   }
   h += `<div class="hint" style="margin:-4px 4px 0">${ro ? '' : 'Нажмите на счет, чтобы увидеть остаток по дням.'}</div>
     <button class="btn" onclick="App.editAcc()">+ Добавить карту, счет или вклад</button>`;
-  if (arch.length) h += `<div class="day">В архиве</div><div class="card">${arch.map(row).join('')}</div>`;
   h += `<div class="day">Данные</div><div class="card pad">
     <div class="hint">${Store.cloud ? 'Данные хранятся в облаке Telegram и доступны на всех ваших устройствах. Их видите только вы.' : 'Тестовый режим: приложение открыто не из Telegram, данные хранятся только в этом браузере.'}</div>
     <button class="btn sec" onclick="App.exportCSV()">Выгрузить операции (CSV)</button>
@@ -943,6 +953,8 @@ const addMonthsClamp = (ds, k) => {
   const Y = y + Math.floor(m / 12), M = ((m % 12) + 12) % 12, last = new Date(Y, M + 1, 0).getDate();
   return `${Y}-${pad(M + 1)}-${pad(Math.min(d, last))}`;
 };
+// Прогноз «крупный», если больше 100 ₽ (валюту пересчитываем в рубли по курсу ЦБ)
+const bigInterest = (n, cur) => n.amount * (Rates.get(todayStr(), cur || 'RUB') || 0) > 100;
 const hasInterest = a => a && (a.type === 'account' || a.type === 'deposit');   // проценты — только у счетов и вкладов
 const dayMonth = ds => `${+ds.slice(8,10)} ${MONTHS_GEN[+ds.slice(5,7) - 1]}`;
 // Проценты за дни [start, end) по ежедневному остатку
@@ -959,7 +971,7 @@ function intAmount(a, start, end) {
 }
 // Ближайшее начисление: дата и примерная сумма (будущие дни — по текущему остатку)
 function nextInterest(a) {
-  const I = a.int; if (!hasInterest(a) || !I || !(I.rate > 0) || !I.open || a.archived) return null;
+  const I = a.int; if (!hasInterest(a) || !I || !(I.rate > 0) || !I.open) return null;   // скрытые тоже: они не закрыты
   const today = todayStr(); let k = 1, pd;
   while ((pd = addMonthsClamp(I.open, k)) <= today) k++;
   return {date:pd, amount:intAmount(a, addMonthsClamp(I.open, k - 1), pd)};
@@ -987,7 +999,7 @@ async function generateInterest() {
   try {
     const today = todayStr(), puts = [];
     for (const a of D.accounts) {
-      const I = a.int; if (!hasInterest(a) || !I || !(I.rate > 0) || !I.open || a.archived) continue;
+      const I = a.int; if (!hasInterest(a) || !I || !(I.rate > 0) || !I.open) continue;
       for (let k = 1; k < 1200; k++) {
         const pd = addMonthsClamp(I.open, k);
         if (pd > today) break;
@@ -1023,7 +1035,7 @@ function accView(id) {
     let h = sheetHead(esc(a.name)) +
       `<div class="datebar"><span class="hint">Остаток на</span>${dateField(date, 'App.histDate(this.value)')}${date < todayStr() ? `<button class="mini" onclick="App.histDate('')">Сегодня</button>` : ''}</div>
       <div class="card big"><span class="hint">На конец дня ${dayLabel(date)}</span><b>${signed(bal, c)}</b>${c !== 'RUB' && r ? `<div class="hint">≈ ${signed(bal * r)} по курсу ЦБ</div>` : ''}</div>
-      ${(() => { const n = nextInterest(a); return n ? `<div class="card pad intcard"><div class="ic" style="color:var(--green);background:#4fd18b22">${icon('percent', 20)}</div><div><b>${dayMonth(n.date)} будет зачислено ≈ ${money(n.amount, '+', c)}</b><div class="hint">Ставка ${NF.format(a.int.rate)}% годовых · начисление ${+a.int.open.slice(8,10)}-го числа каждого месяца. Сумма примерная: считается по текущему остатку.</div></div></div>` : ''; })()}
+      ${(() => { const n = nextInterest(a); return n ? `<div class="card pad intcard"><div class="ic" style="color:var(--green);background:#4fd18b22">${icon('percent', 20)}</div><div><b style="color:${bigInterest(n, c) ? 'var(--green)' : 'var(--text)'}">${dayMonth(n.date)} будет зачислено ≈ ${money(n.amount, '+', c)}</b><div class="hint">Ставка ${NF.format(a.int.rate)}% годовых · начисление ${+a.int.open.slice(8,10)}-го числа каждого месяца. Сумма примерная: считается по текущему остатку.</div></div></div>` : ''; })()}
       <div class="card pad"><div class="hint">Остаток за 60 дней</div>${spark(vals, days)}</div>
       <button class="btn sec" onclick="App.editAcc('${id}')">Изменить счет</button>`;
     const shown = hist.filter(x => x.date <= date).reverse().slice(0, 120);
@@ -1128,8 +1140,8 @@ function pick(i) { const p = _pick; if (!p) return; const v = p.items[i].v; back
 
 function pickAcc(field) {
   const b = balances(), sel = draft[field];
-  const list = accSorted(D.accounts.filter(a => !a.archived || a.id === sel));
-  openPicker(field === 'to' ? 'Куда' : 'Счет', list.map(a => ({v:a.id, label:esc(a.name), sub:`${ACC_TYPE_ONE[a.type]} · ${signed(b[a.id] || 0, a.cur || 'RUB')}`, ic:accIc(a)})), sel, v => df(field, v));
+  const list = accSorted(D.accounts.filter(a => !a.archived)).concat(accSorted(D.accounts.filter(a => a.archived)));  // скрытые — в конце
+  openPicker(field === 'to' ? 'Куда' : 'Счет', list.map(a => ({v:a.id, label:esc(a.name), sub:`${ACC_TYPE_ONE[a.type]}${a.archived ? ' · скрытый' : ''} · ${signed(b[a.id] || 0, a.cur || 'RUB')}`, ic:accIc(a)})), sel, v => df(field, v));
 }
 function pickCur(target) {
   const cur = target === 'acc' ? draft.cur : draft.cur;
@@ -1393,7 +1405,7 @@ function accForm() {
     ${hasInterest(d) && d.intOn ? `<div class="amtrow"><label>% годовых<input inputmode="decimal" value="${esc(d.intRate)}" placeholder="16" oninput="App.d('intRate',this.value)"></label>
       <label style="width:170px;flex:none">Дата открытия${dateField(d.intOpen, "App.dr('intOpen',this.value)")}</label></div>
       <div class="hint pad">Каждый месяц ${d.intOpen ? `<b>${+d.intOpen.slice(8,10)}-го числа</b>` : 'в число открытия'} приложение само добавит доход «Проценты: ${esc(d.name || 'счет')}». Сумма считается по остатку на каждый день: ставка ÷ 365, с учетом уже начисленных процентов. Начисления начнутся со следующей даты — прошлые месяцы не добавляются. Автоначисление можно поправить или удалить, как обычную операцию.</div>` : ''}
-    ${d.id ? `<label class="check"><input type="checkbox" ${d.archived ? 'checked' : ''} onchange="App.d('archived',this.checked)"> В архиве — скрыть из списков (например, закрытый вклад)</label>` : ''}
+    ${d.id ? `<label class="check"><input type="checkbox" ${d.archived ? 'checked' : ''} onchange="App.d('archived',this.checked)"> Скрыть — счет переедет в «Скрытые счета» и не будет учитываться во «Всего денег». Операции и проценты по нему работают как обычно</label>` : ''}
     <button class="btn" onclick="App.saveAcc()">Сохранить</button>
     ${d.id ? `<button class="btn danger" onclick="App.delAcc()">Удалить счет</button>` : ''}`;
 }
@@ -1423,7 +1435,7 @@ function saveAcc() {
 }
 async function delAcc() {
   const id = draft.id;
-  if (D.tx.some(t => t.acc === id || t.to === id)) return toast('По счету есть операции. Отметьте «В архиве», чтобы скрыть его.');
+  if (D.tx.some(t => t.acc === id || t.to === id)) return toast('По счету есть операции. Отметьте «Скрыть», чтобы убрать его из списка.');
   if (!await ask('Удалить счет?')) return;
   D.accounts = D.accounts.filter(a => a.id !== id);
   syncColl('accounts', [], [id]); stack.length = 0; showSheet(); render();
@@ -1535,6 +1547,7 @@ async function doRestore() {
 window.App = {
   newTx, editTx, saveTx, delTx, dtype, pickRef, df, accView,
   moveCat, moveTx, moveAcc, pick,
+  toggleHidden(type) { if (typeof ui.showHidden !== 'object' || !ui.showHidden) ui.showHidden = {}; ui.showHidden[type] = !ui.showHidden[type]; render(); },
   toggleAccReorder() { ui.accReorder = !ui.accReorder; render(); }, pickAcc, pickCur,
   toggleReorder() { ui.reorder = !ui.reorder; render(); },
   qa, qaToggle(v) { ui.qaOpen = v === undefined ? !ui.qaOpen : v; renderQA(); },
