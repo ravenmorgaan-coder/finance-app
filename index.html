@@ -1257,7 +1257,7 @@ function ask(msg) {
 /* ================= Окна выбора (вместо системных списков) ================= */
 // Поле-кнопка: показывает текущее значение, по нажатию открывает окно выбора
 const selField = (inner, onclick, disabled) => `<button type="button" class="selfield" ${disabled ? 'disabled' : `onclick="${onclick}"`}>${inner}${disabled ? '' : icon('down', 18)}</button>`;
-const accInner = id => { const a = accById(id); return a ? `${accIc(a, 18)}<span class="grow">${esc(a.name)}<small>${CURS[a.cur || 'RUB'].s}</small></span>` : `<span class="grow" style="color:var(--hint)">Выберите счет</span>`; };
+const accInner = id => { const a = accById(id); return a ? `${accIc(a, 18)}<span class="grow">${esc(a.name)}${locked() ? '' : `<small>${CURS[a.cur || 'RUB'].s}</small>`}</span>` : `<span class="grow" style="color:var(--hint)">Выберите счет</span>`; };
 const catInner = id => { const c = catById(id); return c ? `${catBadge(c)}<span class="grow">${esc(catPath(id))}</span>` : `${catBadge(null)}<span class="grow" style="color:var(--hint)">Без категории</span>`; };
 const curInner = c => `<span class="grow">${CURS[c].s} ${c}<small>${CURS[c].n}</small></span>`;
 
