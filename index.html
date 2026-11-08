@@ -131,6 +131,10 @@ label textarea{resize:vertical}
 .wcol.sel .wbar i{opacity:1}
 .wcol span{font-size:10px;color:var(--hint)}
 .wcol.sel span{color:var(--text);font-weight:700}
+.wcol{cursor:pointer}
+.srow{display:flex;justify-content:space-between;gap:10px;padding:5px 0;font-size:14px;border-top:1px solid var(--line)}
+.srow:first-child{border-top:0}
+.limtotal{cursor:pointer}
 .intcard{display:flex;gap:12px;align-items:center}
 .intcard b{font-size:15px}
 .donut{padding:16px 14px}
@@ -904,69 +908,145 @@ function compareBlock(cur) {
 }
 
 /* ===== 2. Лимиты по категориям (на месяц) ===== */
-const limitsRec = () => (D.settings || []).find(x => x.id === 'limits') || {id:'limits', items:{}};
+/* Лимиты хранятся по месяцам: {id:'limits', months:{'2026-11':{total, items:{катId: сумма}}}}.
+   Если у месяца своих лимитов нет — берутся из ближайшего прошлого месяца (как стартовые),
+   а при первой правке месяц получает свою копию: остальные месяцы не меняются. */
+const limitsRec = () => (D.settings || []).find(x => x.id === 'limits') || {id:'limits', months:{}};
+function limitsFor(m) {
+  const rec = limitsRec(), months = rec.months || {};
+  if (months[m]) return {total:months[m].total || 0, items:months[m].items || {}, own:true, from:m};
+  const prev = Object.keys(months).filter(k => k < m).sort().pop();
+  if (prev) return {total:months[prev].total || 0, items:months[prev].items || {}, own:false, from:prev};
+  return {total:rec.total || 0, items:rec.items || {}, own:false, from:null};   // старый формат (общие лимиты)
+}
+function saveMonthLimits(m, change) {
+  const rec = limitsRec(), cur = limitsFor(m), months = {...(rec.months || {})};
+  const mine = {total:cur.total || 0, items:{...cur.items}};
+  change(mine);
+  if (!mine.total) delete mine.total;
+  months[m] = mine;
+  const nrec = {id:'limits', months};
+  if (rec.items) nrec.items = rec.items;       // старые общие лимиты остаются запасным вариантом для прошлых месяцев
+  if (rec.total) nrec.total = rec.total;
+  D.settings = (D.settings || []).filter(x => x.id !== 'limits').concat(nrec);
+  syncColl('settings', [nrec]);
+}
+const monthName = m => MONTHS[+m.slice(5) - 1].toLowerCase();
+const monthPrepName = m => MONTHS_PREP[+m.slice(5) - 1];
 function catSpent(a, catId) {   // траты категории вместе с подкатегориями
   const ids = new Set([catId, ...childrenOf(catId).map(c => c.id)]);
   return Object.entries(a.exp).reduce((s, [k, v]) => ids.has(k) ? s + v : s, 0);
 }
 function limitsBlock(a) {
-  const items = limitsRec().items || {};
+  const m = ui.anMonth, L = limitsFor(m), items = L.items, total = L.total || 0;
   const list = Object.entries(items).filter(([id]) => catById(id)).map(([id, lim]) => ({c:catById(id), lim, spent:catSpent(a, id)}))
     .sort((x, y) => y.spent / y.lim - x.spent / x.lim);
-  let h = `<h3>Лимиты на месяц</h3><div class="card">`;
-  if (!list.length) h += `<div class="pad hint">Задайте бюджет на категорию — например, «Кафе — 10 000 ₽ в месяц» — и следите за полоской.</div>`;
+  const colOf = pct => pct > 100 ? 'var(--red)' : pct >= 80 ? '#ffd166' : 'var(--green)';
+  let h = `<h3>Лимиты на ${monthName(m)}</h3>`;
+  if (!L.own && L.from && (total || list.length)) h += `<div class="hint" style="margin:-4px 4px 8px">Перенесены с ${MONTHS_GEN[+L.from.slice(5) - 1]} — измените, если в этом месяце разбивка другая. Другие месяцы при этом не изменятся.</div>`;
+  if (total) {
+    const pct = a.totalExp / total * 100, rest = total - a.totalExp;
+    h += `<div class="card pad limtotal" onclick="App.editTotalLimit()"><div class="hint">Общий лимит на траты</div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:2px"><b style="font-size:20px">${money(a.totalExp)}</b><span class="hint">из ${money(total)}</span></div>
+      <div class="bar" style="height:10px;margin-top:10px"><i style="width:${Math.min(100, pct)}%;background:${colOf(pct)}"></i></div>
+      <div class="sub" style="margin-top:6px">${rest >= 0 ? `осталось ${money(rest)} · ${Math.round(pct)}% использовано` : `<span style="color:var(--red)">перерасход ${money(-rest)}</span>`}</div></div>`;
+  } else {
+    h += `<div class="card pad limtotal" onclick="App.editTotalLimit()"><b>Общий лимит на ${monthName(m)} не задан</b><div class="hint">Нажмите, чтобы задать бюджет на все траты месяца — например, 120 000 ₽.</div></div>`;
+  }
+  h += `<div class="card">`;
+  if (!list.length) h += `<div class="pad hint">Задайте лимит на категорию — например, «Кафе — 10 000 ₽».</div>`;
   list.forEach(({c, lim, spent}) => {
-    const pct = spent / lim * 100, col = pct > 100 ? 'var(--red)' : pct >= 80 ? '#ffd166' : 'var(--green)';
-    const rest = lim - spent;
+    const pct = spent / lim * 100, rest = lim - spent, share = total ? Math.round(lim / total * 100) : null;
     h += `<div class="row" onclick="App.editLimit('${c.id}')">${catBadge(c)}<div class="mid"><div class="tt">${esc(catPath(c.id))}</div>
-      <div class="bar"><i style="width:${Math.min(100, pct)}%;background:${col}"></i></div>
+      <div class="bar"><i style="width:${Math.min(100, pct)}%;background:${colOf(pct)}"></i></div>
       <div class="sub">${rest >= 0 ? `осталось ${money(rest)}` : `<span style="color:var(--red)">перерасход ${money(-rest)}</span>`}</div></div>
-      <div class="amt">${money(spent)}<div class="hint">из ${money(lim)}</div></div></div>`;
+      <div class="amt">${money(spent)}<div class="hint">из ${money(lim)}</div>${share != null ? `<div class="hint" style="color:var(--accent)">${share}% общего</div>` : ''}</div></div>`;
   });
-  return h + `<div class="row link" onclick="App.editLimit()">+ Добавить лимит</div></div>`;
+  const sumCats = list.reduce((s, x) => s + x.lim, 0);
+  if (total && list.length) h += `<div class="pad hint" style="padding-top:6px">Лимиты категорий вместе — ${money(sumCats)}, это ${Math.round(sumCats / total * 100)}% общего лимита${sumCats > total ? ' — больше, чем общий лимит' : ''}.</div>`;
+  return h + `<div class="row link" onclick="App.editLimit()">+ Добавить лимит категории</div></div>`;
+}
+function editTotalLimit() {
+  const m = ui.anMonth, L = limitsFor(m);
+  draft = {total:L.total ? String(L.total) : ''};
+  openSheet(() => sheetHead(`Общий лимит на ${monthName(m)}`) + `
+    <label>Сколько можно потратить за ${monthName(m)}, ₽<input inputmode="decimal" value="${esc(draft.total)}" placeholder="120 000" oninput="App.d('total',this.value)"></label>
+    <div class="hint pad">Меняется только ${monthName(m)} ${m.slice(0,4)}. Следующие месяцы, у которых нет своих лимитов, возьмут эти. Учитываются все расходы месяца (с учетом возвратов), переводы между своими счетами — нет.</div>
+    <button class="btn" onclick="App.saveTotalLimit()">Сохранить</button>
+    ${L.total ? `<button class="btn danger" onclick="App.saveTotalLimit(true)">Убрать общий лимит на ${monthName(m)}</button>` : ''}`);
+}
+function saveTotalLimit(remove) {
+  let v = 0;
+  if (!remove) { v = parseAmount(draft.total); if (!(v > 0)) return toast('Укажите сумму'); }
+  saveMonthLimits(ui.anMonth, L => { L.total = remove ? 0 : r2(v); });
+  haptic('success'); back(); render();
 }
 function editLimit(id) {
-  const items = limitsRec().items || {};
+  const m = ui.anMonth, items = limitsFor(m).items;
   draft = {type:'expense', limitFor:id || '', cat:id || '', limit:id ? String(items[id]) : ''};
-  openSheet(() => sheetHead(draft.limitFor ? 'Лимит' : 'Новый лимит') + `
+  openSheet(() => sheetHead(`${draft.limitFor ? 'Лимит' : 'Новый лимит'} на ${monthName(m)}`) + `
     <label>Категория${selField(catInner(draft.cat), 'App.pickCat()')}</label>
-    <label>Лимит в месяц, ₽<input inputmode="decimal" value="${esc(draft.limit)}" placeholder="10 000" oninput="App.d('limit',this.value)"></label>
-    <div class="hint pad">Траты подкатегорий входят в лимит основной категории. Полоска желтеет с 80% и краснеет при перерасходе.</div>
+    <label>Лимит на ${monthName(m)}, ₽<input inputmode="decimal" value="${esc(draft.limit)}" placeholder="10 000" oninput="App.d('limit',this.value)"></label>
+    <div class="hint pad">Меняется только ${monthName(m)} ${m.slice(0,4)}. Траты подкатегорий входят в лимит основной категории. Полоска желтеет с 80% и краснеет при перерасходе.</div>
     <button class="btn" onclick="App.saveLimit()">Сохранить</button>
-    ${draft.limitFor ? `<button class="btn danger" onclick="App.delLimit()">Удалить лимит</button>` : ''}`);
+    ${draft.limitFor ? `<button class="btn danger" onclick="App.delLimit()">Удалить лимит на ${monthName(m)}</button>` : ''}`);
 }
 function saveLimit() {
   const v = parseAmount(draft.limit);
   if (!draft.cat) return toast('Выберите категорию');
   if (!(v > 0)) return toast('Укажите сумму лимита');
-  const rec = limitsRec(), items = {...(rec.items || {})};
-  if (draft.limitFor && draft.limitFor !== draft.cat) delete items[draft.limitFor];
-  items[draft.cat] = r2(v);
-  const nrec = {id:'limits', items};
-  D.settings = (D.settings || []).filter(x => x.id !== 'limits').concat(nrec);
-  syncColl('settings', [nrec]); haptic('success'); back(); render();
+  saveMonthLimits(ui.anMonth, L => { if (draft.limitFor && draft.limitFor !== draft.cat) delete L.items[draft.limitFor]; L.items[draft.cat] = r2(v); });
+  haptic('success'); back(); render();
 }
 function delLimit() {
-  const items = {...(limitsRec().items || {})}; delete items[draft.limitFor];
-  const nrec = {id:'limits', items};
-  D.settings = (D.settings || []).filter(x => x.id !== 'limits').concat(nrec);
-  syncColl('settings', [nrec]); back(); render();
+  saveMonthLimits(ui.anMonth, L => { delete L.items[draft.limitFor]; });
+  back(); render();
 }
 
-/* ===== 3. Норма сбережений: доход — только категория «Зарплата» (с подкатегориями) ===== */
+/* ===== 3. Сумма сбережений =====
+   Накопления — видимые вклады и счета с пометкой «Накопления» (скрытые не учитываются, как и во «Всего денег»).
+   Сбережения за период = их общий остаток на конец периода минус остаток на конец предыдущего.
+   То есть пополнили 50 000, сняли 20 000, пришли проценты 3 000 — сбережения +33 000. */
+const isSavings = a => !a.archived && (a.type === 'deposit' || (a.type === 'account' && a.savings));
+function periodBounds() {
+  const today = todayStr();
+  if (ui.anPeriod === 'month') {
+    const m = ui.anMonth, last = new Date(+m.slice(0,4), +m.slice(5), 0).getDate();
+    const prevEnd = (() => { const d = new Date(+m.slice(0,4), +m.slice(5) - 1, 0); return dateStr(d); })();
+    return {prevEnd, end:m === today.slice(0,7) ? today : `${m}-${pad(last)}`};
+  }
+  const y = ui.anMonth.slice(0,4);
+  return {prevEnd:`${+y - 1}-12-31`, end:y === today.slice(0,4) ? today : `${y}-12-31`};
+}
 function savingsBlock(a) {
+  const accs = D.accounts.filter(isSavings);
+  let h = `<h3>Сумма сбережений</h3><div class="card pad">`;
+  if (!accs.length) return h + `<div class="hint">Нет накопительных счетов. Вклады учитываются сами, а у счета включите галочку «Накопления» в его настройках.</div></div>`;
+  const {prevEnd, end} = periodBounds();
+  if (end < prevEnd || end > todayStr() && prevEnd >= todayStr()) return h + `<div class="hint">Этот период еще не наступил.</div></div>`;
+  const b0 = balances(prevEnd), b1 = balances(end), rate = (d, c) => Rates.get(d, c) || Rates.get(todayStr(), c) || 0;
+  let delta = 0, interest = 0;
+  const per = accs.map(x => {
+    const c = x.cur || 'RUB';
+    if (c !== 'RUB') { Rates.need(prevEnd, () => ui.tab === 'an' && render()); Rates.need(end, () => ui.tab === 'an' && render()); }
+    const d = (b1[x.id] || 0) * rate(end, c) - (b0[x.id] || 0) * rate(prevEnd, c);
+    delta += d; return {x, d};
+  });
+  for (const t of D.tx) if (t.type === 'income' && t.date > prevEnd && t.date <= end && accs.some(x => x.id === t.acc) && t.cat && /процент/i.test(noYo(catPath(t.cat)))) interest += rubOf(t);
+  const pname = ui.anPeriod === 'month' ? 'за ' + MONTHS[+ui.anMonth.slice(5) - 1].toLowerCase() : 'за ' + ui.anMonth.slice(0,4) + ' год';
+  const col = delta >= 0 ? 'var(--green)' : 'var(--red)';
+  h += `<b style="color:${col};font-size:20px">${delta >= 0 ? '+' : '−'}${money(Math.abs(delta))}</b>
+    <div class="hint">${delta >= 0 ? 'Отложено' : 'Накопления уменьшились'} ${pname}${interest ? ` · в том числе проценты ${money(interest)}` : ''}</div>`;
+  // процент от зарплаты — для ориентира
   const sal = D.cats.find(c => c.type === 'income' && noYo(c.name).trim().toLowerCase() === 'зарплата');
-  let h = `<h3>Норма сбережений</h3><div class="card pad">`;
-  if (!sal) return h + `<div class="hint">Нет категории доходов «Зарплата» — заведите ее, чтобы считать норму сбережений.</div></div>`;
-  const ids = new Set([sal.id, ...childrenOf(sal.id).map(c => c.id)]);
-  const salary = Object.entries(a.inc).reduce((s, [k, v]) => ids.has(k) ? s + v : s, 0), spent = a.totalExp;
-  if (!(salary > 0)) return h + `<div class="hint">За ${ui.anPeriod === 'month' ? 'этот месяц' : 'этот год'} не было доходов из категории «Зарплата». Потрачено ${money(spent)}.</div></div>`;
-  const saved = salary - spent, pct = Math.round(saved / salary * 100);
-  const col = saved < 0 ? 'var(--red)' : pct >= 20 ? 'var(--green)' : '#ffd166';
-  h += saved >= 0 ? `<b style="color:${col};font-size:17px">Отложено ${money(saved)} — ${pct}% зарплаты</b>`
-                  : `<b style="color:${col};font-size:17px">Потрачено больше зарплаты на ${money(-saved)}</b>`;
-  h += `<div class="bar" style="height:8px;margin-top:10px"><i style="width:${Math.max(0, Math.min(100, pct))}%;background:${col}"></i></div>
-    <div class="hint" style="margin-top:8px">Зарплата ${money(salary)} · расходы ${money(spent)}. Другие доходы и переводы между счетами не учитываются.</div>`;
+  if (sal && delta > 0) {
+    const ids = new Set([sal.id, ...childrenOf(sal.id).map(c => c.id)]);
+    const salary = Object.entries(a.inc).reduce((s, [k, v]) => ids.has(k) ? s + v : s, 0);
+    if (salary > 0) h += `<div class="hint">Это ${Math.round(delta / salary * 100)}% зарплаты (${money(salary)})</div>`;
+  }
+  h += `<div style="margin-top:10px">${per.sort((p, q) => Math.abs(q.d) - Math.abs(p.d)).map(({x, d}) =>
+    `<div class="srow"><span>${esc(x.name)}</span><b style="color:${Math.abs(d) < 0.5 ? 'var(--hint)' : d > 0 ? 'var(--green)' : 'var(--red)'}">${Math.abs(d) < 0.5 ? '0 ₽' : (d > 0 ? '+' : '−') + money(Math.abs(d))}</b></div>`).join('')}</div>
+    <div class="hint" style="margin-top:8px">Прирост видимых вкладов и счетов с пометкой «Накопления»: остаток на конец периода минус остаток на его начало.</div>`;
   return h + '</div>';
 }
 
@@ -995,12 +1075,14 @@ function wealthBlock() {
   const hi = Math.max(...vals.map(x => x.v)), lo0 = Math.min(...vals.map(x => x.v));
   const lo = lo0 > 0 ? Math.max(0, lo0 - (hi - lo0 || hi * 0.1) * 0.6) : lo0;
   const hgt = v => hi === lo ? 70 : Math.max(4, (v - lo) / (hi - lo) * 100);
-  const lastV = vals[vals.length - 1], prevV = vals[vals.length - 2];
+  const si = Math.max(0, vals.findIndex(x => x.m === ui.wealthSel));
+  const selI = vals.some(x => x.m === ui.wealthSel) ? si : vals.length - 1;   // выбранный столбик (по умолчанию последний)
+  const lastV = vals[selI], prevV = vals[selI - 1];
   const dv = prevV ? lastV.v - prevV.v : 0;
   let h = `<h3>Динамика всех денег</h3><div class="card pad">
-    <b style="font-size:17px">${signed(lastV.v)}</b><div class="hint">на ${lastV.d === today ? 'сегодня' : 'конец ' + MONTHS_GEN[+lastV.m.slice(5) - 1].replace(/я$/, 'я')}${prevV ? ` · <span style="color:${dv >= 0 ? 'var(--green)' : 'var(--red)'}">${dv >= 0 ? '+' : '−'}${money(Math.abs(dv))}</span> за месяц` : ''}</div>
-    <div class="wbars">${vals.map(x => `<div class="wcol ${x.m === lastV.m ? 'sel' : ''}" title="${monthLabel(x.m)}: ${signed(x.v)}"><div class="wbar"><i style="height:${hgt(x.v)}%"></i></div><span>${MONTHS_SHORT[+x.m.slice(5) - 1]}</span></div>`).join('')}</div>
-    <div class="hint">Видимые карты, счета, вклады и наличные на последний день каждого месяца. Скрытые не учитываются, валюта — по курсу ЦБ на ту дату.</div></div>`;
+    <b style="font-size:17px">${signed(lastV.v)}</b><div class="hint">на ${lastV.d === today ? 'сегодня' : 'конец ' + MONTHS_GEN[+lastV.m.slice(5) - 1] + ' ' + lastV.m.slice(0,4)}${prevV ? ` · <span style="color:${dv >= 0 ? 'var(--green)' : 'var(--red)'}">${dv >= 0 ? '+' : '−'}${money(Math.abs(dv))}</span> за месяц` : ''}</div>
+    <div class="wbars">${vals.map(x => `<div class="wcol ${x.m === lastV.m ? 'sel' : ''}" onclick="App.wsel('${x.m}')"><div class="wbar"><i style="height:${hgt(x.v)}%"></i></div><span>${MONTHS_SHORT[+x.m.slice(5) - 1]}</span></div>`).join('')}</div>
+    <div class="hint">Нажмите на столбик, чтобы увидеть сумму за месяц. Видимые карты, счета, вклады и наличные на последний день месяца; валюта — по курсу ЦБ на ту дату.</div></div>`;
   return h;
 }
 
@@ -1012,8 +1094,10 @@ function catHistory(id, tree) {
   const vals = months.map(m => { const a = analyze(mm => mm === m); return {m, v:Object.entries(a[key]).reduce((s, [k, v]) => ids.has(k) ? s + v : s, 0)}; });
   const nz = vals.filter(x => x.v > 0), avg = nz.length ? nz.reduce((s, x) => s + x.v, 0) / nz.length : 0;
   const max = Math.max(...vals.map(x => x.v), 1), col = id === '_none' ? '#5b606b' : catColor(topOf(catById(id)));
-  return `<div class="card pad"><div class="hint">За 12 месяцев${avg ? ` · в среднем ${money(avg)} в месяц` : ''}</div>
-    <div class="wbars">${vals.map(x => `<div class="wcol ${ui.anPeriod === 'month' && x.m === ui.anMonth ? 'sel' : ''}" title="${monthLabel(x.m)}: ${money(x.v)}"><div class="wbar"><i style="height:${x.v > 0 ? Math.max(3, x.v / max * 100) : 0}%;background:${col}"></i></div><span>${MONTHS_SHORT[+x.m.slice(5) - 1]}</span></div>`).join('')}</div></div>`;
+  const sel = vals.find(x => x.m === ui.histSel);
+  return `<div class="card pad">${sel ? `<b style="font-size:17px">${money(sel.v)}</b><div class="hint">${monthLabel(sel.m)}${avg ? ` · в среднем ${money(avg)} в месяц` : ''}</div>`
+      : `<div class="hint">За 12 месяцев${avg ? ` · в среднем ${money(avg)} в месяц` : ''} · нажмите на столбик, чтобы увидеть сумму</div>`}
+    <div class="wbars">${vals.map(x => `<div class="wcol ${(sel ? x.m === sel.m : ui.anPeriod === 'month' && x.m === ui.anMonth) ? 'sel' : ''}" onclick="App.hsel('${x.m}')"><div class="wbar"><i style="height:${x.v > 0 ? Math.max(3, x.v / max * 100) : 0}%;background:${col}"></i></div><span>${MONTHS_SHORT[+x.m.slice(5) - 1]}</span></div>`).join('')}</div></div>`;
 }
 
 /* Круговая диаграмма. segs = [{name, value, color, onclick}] */
@@ -1683,7 +1767,7 @@ async function delTx() {
 function editAcc(id) {
   const a = id ? accById(id) : null;
   draft = {id:a ? a.id : null, name:a ? a.name : '', type:a ? a.type : 'card', cur:a ? a.cur || 'RUB' : 'RUB', initial:a ? String(a.initial || 0) : '', archived:!!(a && a.archived), color:a ? accColor(a) : COLORS[D.accounts.length % COLORS.length],
-    intOn:!!(a && a.int), intRate:a && a.int ? String(a.int.rate) : '', intOpen:a && a.int ? a.int.open : ''};
+    savings:!!(a && a.savings), intOn:!!(a && a.int), intRate:a && a.int ? String(a.int.rate) : '', intOpen:a && a.int ? a.int.open : ''};
   openSheet(accForm);
 }
 function accForm() {
@@ -1700,6 +1784,7 @@ function accForm() {
     ${hasInterest(d) && d.intOn ? `<div class="amtrow"><label>% годовых<input inputmode="decimal" value="${esc(d.intRate)}" placeholder="16" oninput="App.d('intRate',this.value)"></label>
       <label style="width:170px;flex:none">Дата открытия${dateField(d.intOpen, "App.dr('intOpen',this.value)")}</label></div>
       <div class="hint pad">Каждый месяц ${d.intOpen ? `<b>${+d.intOpen.slice(8,10)}-го числа</b>` : 'в число открытия'} приложение само добавит доход «Проценты: ${esc(d.name || 'счет')}». Сумма считается по остатку на каждый день: ставка ÷ 365, с учетом уже начисленных процентов. Начисления начнутся со следующей даты — прошлые месяцы не добавляются. Автоначисление можно поправить или удалить, как обычную операцию.</div>` : ''}
+    ${d.type === 'account' ? `<label class="check" style="margin-top:14px"><input type="checkbox" ${d.savings ? 'checked' : ''} onchange="App.d('savings',this.checked)"> Накопления — учитывать в «Сумме сбережений»</label>` : ''}
     ${d.id ? `<label class="check"><input type="checkbox" ${d.archived ? 'checked' : ''} onchange="App.d('archived',this.checked)"> Скрыть</label>` : ''}
     <button class="btn" onclick="App.saveAcc()">Сохранить</button>
     ${d.id ? `<button class="btn danger" onclick="App.delAcc()">Удалить счет</button>` : ''}`;
@@ -1715,6 +1800,7 @@ function saveAcc() {
   else if (!old || old.type !== a.type) a.order = D.accounts.filter(x => x.type === a.type && x.id !== a.id).reduce((m, x) => Math.max(m, accOrd(x)), -1) + 1;
   if (d.cur && d.cur !== 'RUB') a.cur = d.cur;
   if (d.archived) a.archived = true;
+  if (d.type === 'account' && d.savings) a.savings = true;
   if (d.intOn && hasInterest(a)) {
     const rate = parseAmount(d.intRate);
     if (!(rate > 0)) return toast('Укажите процент годовых');
@@ -1785,6 +1871,7 @@ async function delCat() {
 
 /* Операции категории за период (из аналитики) */
 function catTx(id, tree) {
+  ui.histSel = null;
   openSheet(() => {
     const per = periodFn();
     const ids = new Set(tree ? [id, ...childrenOf(id).map(c => c.id)] : [id]);
@@ -1845,7 +1932,9 @@ window.App = {
   toggleHidden(type) { if (typeof ui.showHidden !== 'object' || !ui.showHidden) ui.showHidden = {}; ui.showHidden[type] = !ui.showHidden[type]; render(); },
   toggleAccReorder() { ui.accReorder = !ui.accReorder; render(); }, pickAcc, pickCur,
   toggleReorder() { ui.reorder = !ui.reorder; render(); },
-  pinKey, pinCancel, pinChange, pinOff, editLimit, saveLimit, delLimit,
+  pinKey, pinCancel, pinChange, pinOff, editLimit, saveLimit, delLimit, editTotalLimit, saveTotalLimit,
+  wsel(m) { ui.wealthSel = m; render(); },
+  hsel(m) { ui.histSel = ui.histSel === m ? null : m; showSheet(); },
   useSuggestion, qa, qaToggle(v) { ui.qaOpen = v === undefined ? !ui.qaOpen : v; renderQA(); },
   rk(v) { const d = draft; if (d.rk === v) return; d.rk = v; d.ref = ''; const c = catById(d.cat); if (c && c.type !== catTypeOf(d)) d.cat = ''; showSheet(); },
   refSearch(v) { refQ = v; const el = $('#refList'); if (el) el.innerHTML = refListHtml(); },
