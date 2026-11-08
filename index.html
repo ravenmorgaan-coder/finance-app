@@ -1097,7 +1097,8 @@ function moveCat(id, dir) {
       а если операция была в такой же день недели, как сегодня, — вес ×1,5 (будни/выходные привычки).
    5. Если сегодня такая операция уже внесена столько раз, сколько вы обычно вносите ее максимум за день
       (метро 3 раза в день — значит после третьего), вес вдвое меньше. До этого предложение остается на месте.
-   6. Сумма — самая частая в этой группе (при равенстве — последняя). Берем 3 лучших. */
+   6. Сумма — та, что повторялась чаще всего. Если все суммы разные — сумма не подставляется (0 ₽, вводите сами).
+      Берем 3 лучших. */
 function suggestions() {
   const today = todayStr(), T = new Date(today + 'T12:00:00'), wd = T.getDay();
   const from = (() => { const d = new Date(T); d.setDate(d.getDate() - 90); return dateStr(d); })();
@@ -1117,6 +1118,7 @@ function suggestions() {
   return [...groups.values()].filter(g => g.n >= 2).map(g => {
     let amount = g.last.amount, best = 0;
     for (const [a, c] of g.amounts) if (c > best || (c === best && a === g.last.amount)) { best = c; amount = a; }
+    if (best < 2) amount = 0;   // ни одна сумма не повторялась — не угадываем
     const c = catById(g.last.cat);
     const maxPerDay = Math.max(1, ...g.perDay.values());   // сколько раз максимум за один день в прошлом
     return {score:g.score * (g.today >= maxPerDay ? 0.5 : 1), n:g.n, amount, cur:curOf(g.last), acc:g.last.acc, cat:g.last.cat || '', title:g.last.title || (c ? c.name : 'Расход')};
@@ -1128,13 +1130,14 @@ function useSuggestion(i) {
   const sg = _sugg[i]; if (!sg) return;
   ui.qaOpen = false; renderQA();
   newTx();
-  Object.assign(draft, {type:'expense', amount:String(sg.amount), cur:sg.cur, curTouched:true, acc:sg.acc, cat:sg.cat, title:sg.title, date:todayStr()});
+  Object.assign(draft, {type:'expense', amount:sg.amount ? String(sg.amount) : '', cur:sg.cur, curTouched:true, acc:sg.acc, cat:sg.cat, title:sg.title, date:todayStr()});
   showSheet(); prepRates();
+  if (!sg.amount) setTimeout(() => { const i = $('#f_amount'); i && i.focus(); }, 250);   // суммы нет — сразу курсор в поле суммы
 }
 function renderQA() {
   // Сверху вниз: предложения частых расходов, затем «Порядок», затем «Наверх»
   _sugg = ui.tab === 'cats' ? [] : suggestions();
-  const items = _sugg.map((sg, i) => ({fn:`App.useSuggestion(${i})`, sugg:true, label:`<b>${esc(sg.title)}</b> · ${money(sg.amount, '', sg.cur)}`, ic:catBadge(catById(sg.cat))}));
+  const items = _sugg.map((sg, i) => ({fn:`App.useSuggestion(${i})`, sugg:true, label:`<b>${esc(sg.title)}</b>`, ic:catBadge(catById(sg.cat))}));
   if (ui.tab === 'ops') items.push({k:'order', label:ui.reorder ? 'Закончить порядок' : 'Порядок операций', ic:'sort', on:ui.reorder});
   if (ui.tab === 'acc') items.push({k:'order', label:ui.accReorder ? 'Закончить порядок' : 'Порядок счетов', ic:'sort', on:ui.accReorder});
   items.push({k:'top', label:'Наверх', ic:'top'});
