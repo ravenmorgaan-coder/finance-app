@@ -47,7 +47,7 @@ html[data-theme="asia"]{
   --dim:rgba(30,34,44,.38); --dim2:rgba(30,34,44,.18);
   --fab:#d4705f; --fab-text:#ffffff; --fab-glow:rgba(212,112,95,.32);
   --ink-line:rgba(46,54,68,.28);
-  --head-font:"IBM Plex Serif",Georgia,serif;
+  --head-font:"IBM Plex Sans","Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;   /* один шрифт везде, без засечек */
   --bgimg:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='150' viewBox='0 0 120 150' opacity='0.2'%3E%3Cg fill='none' stroke='%233b4a63' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%0A%3Cpath d='M60 2v16M56 8h8M56 13h8'/%3E%0A%3Cpath d='M22 36q38-18 76 0'/%3E%3Cpath d='M18 38l4-2M102 38l-4-2'/%3E%3Cpath d='M32 36v10h56V36'/%3E%0A%3Cpath d='M14 64q46-20 92 0'/%3E%3Cpath d='M10 66l4-2M110 66l-4-2'/%3E%3Cpath d='M24 64v12h72V64'/%3E%0A%3Cpath d='M6 96q54-22 108 0'/%3E%3Cpath d='M2 98l4-2M118 98l-4-2'/%3E%3Cpath d='M18 96v16h84V96'/%3E%0A%3Cpath d='M42 31l2 4M51 29l1 4M60 28v4M69 29l-1 4M78 31l-2 4'/%3E%0A%3Cpath d='M34 58l2 4M45 56l1 4M56 55v4M67 55v4M78 56l-1 4M88 58l-2 4'/%3E%0A%3Cpath d='M24 89l2 4M37 87l1 4M50 86v4M63 86v4M76 86v4M89 87l-1 4M100 89l-2 4'/%3E%0A%3Cpath d='M40 40v6M48 40v6M56 40v6M64 40v6M72 40v6M80 40v6'/%3E%0A%3Cpath d='M8 146h104M24 112v34M96 112v34M50 124h20v22H50zM60 124v22'/%3E%0A%3Cpath d='M30 120l6 6M30 130l6 6M84 120l6 6M84 130l6 6'/%3E%3C/g%3E%3C/svg%3E") right 6px top 54px/96px 120px no-repeat,
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='170' viewBox='0 0 44 170'%3E%3Cg font-family='serif' font-size='32' text-anchor='middle' fill='%233b4a63' opacity='0.22'%3E%3Ctext x='22' y='36'%3E%E9%87%91%3C/text%3E%3Ctext x='22' y='78'%3E%E9%81%8B%3C/text%3E%3C/g%3E%0A%3Crect x='6' y='96' width='32' height='32' rx='4' fill='%23c8574a' opacity='0.55'/%3E%3Ctext x='22' y='121' font-family='serif' font-size='24' text-anchor='middle' fill='%23fbf6ee'%3E%E7%A6%8F%3C/text%3E%3C/svg%3E") right 4px top 44%/36px 140px no-repeat,
@@ -2073,7 +2073,7 @@ function applyTheme(name) {
   if (t === 'default') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;
   if (t !== 'default' && !document.getElementById('jpfont')) {   // шрифты темы грузим только когда она включена
     const l = document.createElement('link'); l.id = 'jpfont'; l.rel = 'stylesheet';
-    l.href = 'https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap';
+    l.href = 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap';
     document.head.appendChild(l);
   }
   try { if (IN_TG) { TG.setHeaderColor(THEMES[t].head); TG.setBackgroundColor(THEMES[t].bg); TG.setBottomBarColor && TG.setBottomBarColor(THEMES[t].bottom); } } catch (e) {}
