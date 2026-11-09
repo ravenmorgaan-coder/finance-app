@@ -20,17 +20,62 @@
   --accent:#b9a2ff;
   --accent-text:#1a0f33;
   --line:rgba(255,255,255,.07);
+  --soft:rgba(255,255,255,.07);      /* подложки иконок, кнопок */
+  --track:rgba(255,255,255,.08);     /* фон полосок */
+  --pop:#2a1d4d;                     /* плашки меню молнии */
+  --toast:#3a2a66; --toast-text:var(--text);
+  --tabs:rgba(22,13,44,.82);
+  --dim:rgba(8,4,20,.65); --dim2:rgba(8,4,20,.35);
+  --fab:var(--accent); --fab-text:var(--accent-text); --fab-glow:rgba(185,162,255,.45);
+  --head-font:inherit;
+  --bgimg:
+    radial-gradient(120% 55% at 85% -10%, rgba(170,120,255,.20) 0%, rgba(170,120,255,0) 60%),
+    radial-gradient(90% 50% at -10% 45%, rgba(110,60,210,.14) 0%, rgba(110,60,210,0) 60%),
+    radial-gradient(100% 60% at 110% 105%, rgba(200,110,255,.10) 0%, rgba(200,110,255,0) 60%),
+    linear-gradient(170deg, #1a0d33 0%, #110824 40%, #0b0518 75%, #070310 100%);
   --red:#ff6b6b;--green:#4fd18b;--orange:#f2a65a;--blue:#7cc4ff;
 }
+
+/* ===== Тема «Азия»: пастельная гравюра — тушь, бамбук, пагода, иероглифы ===== */
+html[data-theme="asia"]{
+  color-scheme:light;
+  --bg:#f3eee3; --card:rgba(253,250,244,.93); --card2:#ece5d7; --sheet:#f8f4ec;
+  --text:#2e3644; --hint:#878783; --accent:#4f6d8f; --accent-text:#ffffff;
+  --line:rgba(46,54,68,.12); --red:#c8574a; --green:#5f8f6a; --orange:#cf9452; --blue:#5f84a8;
+  --soft:rgba(46,54,68,.05); --track:rgba(46,54,68,.08); --pop:#fbf8f2;
+  --toast:#2e3644; --toast-text:#f8f4ec; --tabs:rgba(250,246,238,.96);
+  --dim:rgba(30,34,44,.38); --dim2:rgba(30,34,44,.18);
+  --fab:#d4705f; --fab-text:#ffffff; --fab-glow:rgba(212,112,95,.32);
+  --ink-line:rgba(46,54,68,.28);
+  --head-font:"IBM Plex Serif",Georgia,serif;
+  --bgimg:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='150' viewBox='0 0 120 150' opacity='0.2'%3E%3Cg fill='none' stroke='%233b4a63' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%0A%3Cpath d='M60 2v16M56 8h8M56 13h8'/%3E%0A%3Cpath d='M22 36q38-18 76 0'/%3E%3Cpath d='M18 38l4-2M102 38l-4-2'/%3E%3Cpath d='M32 36v10h56V36'/%3E%0A%3Cpath d='M14 64q46-20 92 0'/%3E%3Cpath d='M10 66l4-2M110 66l-4-2'/%3E%3Cpath d='M24 64v12h72V64'/%3E%0A%3Cpath d='M6 96q54-22 108 0'/%3E%3Cpath d='M2 98l4-2M118 98l-4-2'/%3E%3Cpath d='M18 96v16h84V96'/%3E%0A%3Cpath d='M42 31l2 4M51 29l1 4M60 28v4M69 29l-1 4M78 31l-2 4'/%3E%0A%3Cpath d='M34 58l2 4M45 56l1 4M56 55v4M67 55v4M78 56l-1 4M88 58l-2 4'/%3E%0A%3Cpath d='M24 89l2 4M37 87l1 4M50 86v4M63 86v4M76 86v4M89 87l-1 4M100 89l-2 4'/%3E%0A%3Cpath d='M40 40v6M48 40v6M56 40v6M64 40v6M72 40v6M80 40v6'/%3E%0A%3Cpath d='M8 146h104M24 112v34M96 112v34M50 124h20v22H50zM60 124v22'/%3E%0A%3Cpath d='M30 120l6 6M30 130l6 6M84 120l6 6M84 130l6 6'/%3E%3C/g%3E%3C/svg%3E") right 6px top 54px/96px 120px no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='170' viewBox='0 0 44 170'%3E%3Cg font-family='serif' font-size='32' text-anchor='middle' fill='%233b4a63' opacity='0.22'%3E%3Ctext x='22' y='36'%3E%E9%87%91%3C/text%3E%3Ctext x='22' y='78'%3E%E9%81%8B%3C/text%3E%3C/g%3E%0A%3Crect x='6' y='96' width='32' height='32' rx='4' fill='%23c8574a' opacity='0.55'/%3E%3Ctext x='22' y='121' font-family='serif' font-size='24' text-anchor='middle' fill='%23fbf6ee'%3E%E7%A6%8F%3C/text%3E%3C/svg%3E") right 4px top 44%/36px 140px no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='130' height='440' viewBox='0 0 130 440' opacity='0.2'%3E%3Cg stroke='%233b4a63' stroke-width='1.4' stroke-linecap='round' fill='none'%3E%0A%3Cpath d='M40 440C38 300 40 160 46 6M51 440C49 300 51 160 56 8'/%3E%0A%3Cpath d='M38 380h15M38 318h15M39 256h15M41 194h15M43 132h14M45 70h13'/%3E%0A%3Cpath d='M84 440c-1-110 0-220 4-330M92 440c-1-110 0-220 4-330'/%3E%0A%3Cpath d='M83 392h11M83 340h11M84 288h11M85 236h11M86 184h11M87 132h11'/%3E%3C/g%3E%0A%3Cg fill='%233b4a63'%3E%0A%3Cpath d='M56 120q34-14 64 0q-34 8-64 0z' opacity='.55'/%3E%3Cpath d='M56 128q28 4 50 22q-30-2-50-22z' opacity='.45'/%3E%0A%3Cpath d='M45 66q-26-16-44-8q22 10 44 8z' opacity='.5'/%3E%3Cpath d='M46 74q-22 2-40 18q24-2 40-18z' opacity='.4'/%3E%0A%3Cpath d='M96 180q20-12 34-6q-16 8-34 6z' opacity='.5'/%3E%3Cpath d='M96 186q16 4 28 18q-18-4-28-18z' opacity='.4'/%3E%0A%3Cpath d='M54 250q30-6 50 6q-28 4-50-6z' opacity='.45'/%3E%3C/g%3E%3C/svg%3E") left -26px bottom 70px/110px 372px no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.3 0 0 0 0 0.28 0 0 0 0 0.24 0 0 0 .06 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E") 0 0/160px 160px,
+    linear-gradient(180deg, #f7f3ea 0%, #f1ebde 60%, #ece5d6 100%);
+}
+html[data-theme="asia"] body{font-family:"IBM Plex Sans","Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+/* Графичность: тонкие линии тушью вместо теней */
+html[data-theme="asia"] .card{border:1px solid var(--ink-line)}
+html[data-theme="asia"] .panel .card{border-color:rgba(46,54,68,.14)}
+html[data-theme="asia"] .mnav button, html[data-theme="asia"] .chip, html[data-theme="asia"] .seg, html[data-theme="asia"] .search, html[data-theme="asia"] .mv.tall, html[data-theme="asia"] .datefield, html[data-theme="asia"] .selfield{border:1px solid var(--ink-line)}
+html[data-theme="asia"] #tabs{border-top:1px solid var(--ink-line)}
+html[data-theme="asia"] .qa-main, html[data-theme="asia"] .qa-item span, html[data-theme="asia"] .qa-item i{border-color:var(--ink-line)}
+/* Заголовки: ровные, шрифт с засечками, перед ними маленькая красная печать-ханко */
+html[data-theme="asia"] h3{display:flex;align-items:center;gap:8px;font-family:var(--head-font);font-weight:600;color:var(--text);letter-spacing:.01em}
+html[data-theme="asia"] h3::before{content:"";width:9px;height:9px;border-radius:2px;background:var(--red);opacity:.8;flex:none}
+html[data-theme="asia"] .mnav b, html[data-theme="asia"] .sh-head b, html[data-theme="asia"] .pin h2, html[data-theme="asia"] .big b, html[data-theme="asia"] .dc b{font-family:var(--head-font);font-weight:600}
+html[data-theme="asia"] .day{font-family:var(--head-font);color:#5a6170}
+html[data-theme="asia"] #tabs button.active{color:var(--red)}
+/* Пастель: приглушаем яркие цвета категорий и счетов (кольца, полоски, значки) */
+html[data-theme="asia"] .dsvg g, html[data-theme="asia"] .bar i, html[data-theme="asia"] .lg i, html[data-theme="asia"] .ic.cat, html[data-theme="asia"] .wbar i, html[data-theme="asia"] .row > .ic[style]{filter:saturate(.6) brightness(1.04)}
+html[data-theme="asia"] .seg button.on.t-expense, html[data-theme="asia"] .seg button.on.t-income, html[data-theme="asia"] .seg button.on.t-refund{color:#fff}
 html{background:var(--bg)}
 body{background:transparent}
 /* Фон-градиент лежит на отдельном неподвижном слое: так он не «едет» при прокрутке на телефоне */
 body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
-  background:
-    radial-gradient(120% 55% at 85% -10%, rgba(170,120,255,.20) 0%, rgba(170,120,255,0) 60%),
-    radial-gradient(90% 50% at -10% 45%, rgba(110,60,210,.14) 0%, rgba(110,60,210,0) 60%),
-    radial-gradient(100% 60% at 110% 105%, rgba(200,110,255,.10) 0%, rgba(200,110,255,0) 60%),
-    linear-gradient(170deg, #1a0d33 0%, #110824 40%, #0b0518 75%, #070310 100%)}
+  background:var(--bgimg)}
 html,body{margin:0;color:var(--text);font:15px/1.35 "Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
 body.lock{overflow:hidden}
 #view{padding:12px 12px calc(170px + env(safe-area-inset-bottom));max-width:640px;margin:0 auto}
@@ -83,16 +128,23 @@ label textarea{resize:vertical}
 /* Библиотека иконок */
 .igrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(46px,1fr));gap:8px;margin-top:6px}
 .igrid button{aspect-ratio:1;border:0;border-radius:12px;background:var(--card2);color:var(--hint);display:grid;place-items:center;cursor:pointer;font:inherit;font-size:11px}
-.igrid button.on{color:inherit;background:#ffffff10;outline:2px solid currentColor;outline-offset:-2px}
+.igrid button.on{color:inherit;background:var(--soft);outline:2px solid currentColor;outline-offset:-2px}
 .cg{border-bottom:1px solid var(--line);background:transparent}
 .cg:last-child{border-bottom:0}
 .cg>.row:last-child{border-bottom:0}
 .dsub{padding-left:14px!important}
 .mvs{display:flex;gap:6px;flex:none}
-.mv{width:34px;height:34px;border:0;border-radius:10px;background:rgba(255,255,255,.07);color:var(--text);display:grid;place-items:center;cursor:pointer;padding:0}
+.mv{width:34px;height:34px;border:0;border-radius:10px;background:var(--soft);color:var(--text);display:grid;place-items:center;cursor:pointer;padding:0}
 .mv:active{background:var(--accent);color:var(--accent-text)}
 .mv:disabled{opacity:.2;cursor:default}
 .mv.add{color:var(--accent)}
+.themes{display:flex;gap:6px;padding:6px}
+.tbtn{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:10px;padding:9px 8px;background:transparent;color:var(--text);font:inherit;font-size:14px;cursor:pointer}
+.tbtn.on{background:var(--soft);font-weight:600}
+.tbtn .i{color:var(--accent)}
+.tsw{display:flex}
+.tsw i{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--card);margin-left:-5px;box-shadow:0 0 0 1px var(--line)}
+.tsw i:first-child{margin-left:0}
 .hidrow .tt{color:var(--hint)}
 .sbar{display:flex;gap:8px;align-items:stretch;margin-bottom:10px}
 .sbar .searchbox{flex:1;margin-bottom:0}
@@ -103,7 +155,7 @@ label textarea{resize:vertical}
 .day{color:var(--hint);font-size:13px;margin:14px 4px 6px}
 .row{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);cursor:pointer}
 .row:last-child{border-bottom:0}
-.ic{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.07);display:grid;place-items:center;font-size:17px;flex:none}
+.ic{width:34px;height:34px;border-radius:50%;background:var(--soft);display:grid;place-items:center;font-size:17px;flex:none}
 .mid{flex:1;min-width:0}
 .tt{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sub{color:var(--hint);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -153,7 +205,7 @@ label textarea{resize:vertical}
 .lgs.one .lg b{width:44px;text-align:right}
 .subrow{padding-left:58px}
 .link{color:var(--accent);font-size:14px}
-.bar{height:6px;background:rgba(255,255,255,.08);border-radius:3px;margin-top:6px;overflow:hidden}
+.bar{height:6px;background:var(--track);border-radius:3px;margin-top:6px;overflow:hidden}
 .bar i{display:block;height:100%;border-radius:3px}
 .seg{display:flex;background:var(--card);border-radius:10px;padding:3px;margin-bottom:10px;gap:3px}
 .seg button{flex:1;border:0;background:transparent;color:var(--text);padding:8px 4px;border-radius:8px;font:inherit;font-size:14px;cursor:pointer}
@@ -162,7 +214,7 @@ label textarea{resize:vertical}
 .seg button.on.t-income{background:var(--green);color:#fff}
 .seg button.on.t-refund{background:var(--orange);color:#fff}
 .btn{display:block;width:100%;border:0;border-radius:12px;padding:13px;font:inherit;font-weight:600;background:var(--accent);color:var(--accent-text);margin:12px 0 0;cursor:pointer}
-.btn.sec{background:rgba(255,255,255,.07);color:var(--accent)}
+.btn.sec{background:var(--soft);color:var(--accent)}
 .btn.danger{background:transparent;color:var(--red);margin-top:4px}
 .mini{border:0;background:var(--bg);color:var(--accent);border-radius:8px;padding:5px 8px;font:inherit;font-size:12px;flex:none;cursor:pointer}
 .empty{text-align:center;color:var(--hint);padding:30px 10px}
@@ -177,30 +229,30 @@ h3{font-size:15px;margin:18px 4px 8px}
 .col.sel span{color:var(--text);font-weight:700}
 .legend{display:flex;gap:14px;font-size:12px;color:var(--hint);margin:-4px 4px 12px}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
-#tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:rgba(22,13,44,.82);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom);z-index:10}
+#tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--tabs);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom);z-index:10}
 #tabs button{flex:1;border:0;background:none;color:var(--hint);padding:7px 0 6px;font:inherit;font-size:11px;display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer}
 #tabs button svg{width:22px;height:22px;margin-bottom:2px}
 #tabs button.active{color:var(--accent)}
 
-#fab{position:fixed;right:16px;bottom:calc(72px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-text);display:grid;place-items:center;box-shadow:0 6px 24px rgba(185,162,255,.45);z-index:11;cursor:pointer}
+#fab{position:fixed;right:16px;bottom:calc(72px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;border:0;background:var(--fab);color:var(--fab-text);display:grid;place-items:center;box-shadow:0 6px 24px var(--fab-glow);z-index:11;cursor:pointer}
 /* Горячая кнопка над «+»: раскрывает быстрые действия */
 #qa{position:fixed;right:22px;bottom:calc(140px + env(safe-area-inset-bottom));z-index:12;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
 #qa.low{bottom:calc(82px + env(safe-area-inset-bottom))}
-.qa-main{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:#2a1d4d;color:var(--accent);display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.35);transition:transform .15s}
+.qa-main{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--pop);color:var(--accent);display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.35);transition:transform .15s}
 #qa.open .qa-main{background:var(--accent);color:var(--accent-text);transform:rotate(90deg)}
 .qa-items{display:none;flex-direction:column;align-items:flex-end;gap:10px}
 #qa.open .qa-items{display:flex;animation:qaIn .15s ease}
 @keyframes qaIn{from{opacity:0;transform:translateY(8px)}}
 .qa-item{display:flex;align-items:center;gap:10px;border:0;background:none;padding:0;cursor:pointer;font:inherit;color:var(--text)}
-.qa-item span{background:#2a1d4d;border:1px solid var(--line);padding:7px 12px;border-radius:999px;font-size:14px;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.3)}
-.qa-item i{width:44px;height:44px;border-radius:50%;background:#2a1d4d;border:1px solid var(--line);display:grid;place-items:center;color:var(--text);box-shadow:0 4px 14px rgba(0,0,0,.3)}
+.qa-item span{background:var(--pop);border:1px solid var(--line);padding:7px 12px;border-radius:999px;font-size:14px;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+.qa-item i{width:44px;height:44px;border-radius:50%;background:var(--pop);border:1px solid var(--line);display:grid;place-items:center;color:var(--text);box-shadow:0 4px 14px rgba(0,0,0,.3)}
 .qa-item.on i{background:var(--accent);color:var(--accent-text);border-color:transparent}
 .qa-head{font-size:12px;color:var(--hint);margin-right:56px;margin-bottom:-4px}
 .qa-item.sugg i{overflow:hidden}
 .qa-item.sugg i .ic{width:100%;height:100%;border-radius:50%}
 .qa-item.sugg span b{font-weight:600}
 .qa-item.last-sugg{margin-bottom:8px}
-#qaBack{display:none;position:fixed;inset:0;z-index:11;background:rgba(8,4,20,.35)}
+#qaBack{display:none;position:fixed;inset:0;z-index:11;background:var(--dim2)}
 #qaBack.open{display:block}
 .pin{display:flex;flex-direction:column;align-items:center;text-align:center;padding:36px 0 10px}
 .pin .lock{width:60px;height:60px;border-radius:50%;background:var(--card);display:grid;place-items:center;color:var(--accent);margin-bottom:14px}
@@ -218,7 +270,7 @@ h3{font-size:15px;margin:18px 4px 8px}
 .keys .small{font-size:15px}
 #sheet{position:fixed;inset:0;z-index:20}
 #sheet.hidden{display:none}
-.backdrop{position:absolute;inset:0;background:rgba(8,4,20,.65)}
+.backdrop{position:absolute;inset:0;background:var(--dim)}
 .panel{position:absolute;left:0;right:0;bottom:0;max-height:92vh;overflow-y:auto;background:var(--sheet);border-radius:16px 16px 0 0;padding:6px 16px calc(20px + env(safe-area-inset-bottom));animation:up .2s ease;max-width:640px;margin:0 auto}
 @keyframes up{from{transform:translateY(30px);opacity:.6}}
 .panel .card,.panel .seg,.panel label input,.panel label select,.panel label textarea{background:var(--card2)}
@@ -234,7 +286,7 @@ label>input,label>select,label>textarea{margin-top:4px}
 .check{display:flex;gap:8px;align-items:center;color:var(--text);font-size:14px}
 .check input{width:auto;-webkit-appearance:checkbox;appearance:auto;margin:0}
 .copy{width:100%;min-height:200px;font:12px/1.4 ui-monospace,Menlo,monospace;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px}
-#toast{position:fixed;left:50%;bottom:calc(140px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#3a2a66;color:var(--text);padding:9px 14px;border-radius:10px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:30;max-width:90%;text-align:center}
+#toast{position:fixed;left:50%;bottom:calc(140px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--toast);color:var(--toast-text);padding:9px 14px;border-radius:10px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:30;max-width:90%;text-align:center}
 #toast.show{opacity:1}
 </style>
 </head>
@@ -734,6 +786,7 @@ const summary = a => { const d = a.totalInc - a.totalExp; return `<div class="ca
 const sheetHead = title => `<div class="sh-head"><b>${title}</b><button class="x" onclick="App.back()">${icon('x', 16)}</button></div>`;
 
 function render() {
+  syncTheme();
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === ui.tab));
   $('#fab').style.display = ui.tab === 'cats' ? 'none' : '';
   renderQA();
@@ -1408,7 +1461,11 @@ function accView(id) {
 }
 
 function viewCats() {
-  let h = seg('catTab', [['expense','Расходы'],['income','Доходы']]) + '<div class="card">';
+  const cur = themeSetting();
+  const sw = (t, colors) => `<span class="tsw">${colors.map(c => `<i style="background:${c}"></i>`).join('')}</span>`;
+  let h = `<div class="card themes">${[['default', 'Фиолетовая', ['#1a0d33', '#b9a2ff', '#2a1d4d']], ['asia', 'Азия', ['#f3eee3', '#4f6d8f', '#d4705f']]].map(([t, name, colors]) =>
+      `<button class="tbtn ${cur === t ? 'on' : ''}" onclick="App.setTheme('${t}')">${sw(t, colors)}<span>${name}</span>${cur === t ? icon('check', 16) : ''}</button>`).join('')}</div>`;
+  h += seg('catTab', [['expense','Расходы'],['income','Доходы']]) + '<div class="card">';
   const ps = parents(ui.catTab);
   if (!ps.length) h += '<div class="empty">Категорий пока нет</div>';
   // Стрелки: сдвиг на одну позицию вверх / вниз
@@ -1961,6 +2018,7 @@ window.App = {
   toggleHidden(type) { if (typeof ui.showHidden !== 'object' || !ui.showHidden) ui.showHidden = {}; ui.showHidden[type] = !ui.showHidden[type]; render(); },
   toggleAccReorder() { ui.accReorder = !ui.accReorder; render(); }, pickAcc, pickCur,
   toggleReorder() { ui.reorder = !ui.reorder; render(); },
+  applyTheme, setTheme,
   pinKey, pinCancel, pinChange, pinOff, editLimit, saveLimit, delLimit, editTotalLimit, saveTotalLimit,
   wsel(m) { ui.wealthSel = m; render(); },
   hsel(m) { ui.histSel = ui.histSel === m ? null : m; showSheet(); },
@@ -1991,6 +2049,36 @@ window.App = {
 };
 
 
+/* ================= Темы ================= */
+const THEMES = {
+  default:{name:'Фиолетовая', head:'#1a0d33', bg:'#0d0619', bottom:'#160d2c'},
+  asia:{name:'Азия', head:'#f7f3ea', bg:'#f3eee3', bottom:'#faf6ee'},
+};
+/* Выбранная тема хранится в облаке Telegram (одинаковая на телефоне и компьютере)
+   и дублируется на устройстве — чтобы при запуске тема включалась сразу, еще до загрузки данных. */
+let appliedTheme = null;
+const themeSetting = () => ((D.settings || []).find(x => x.id === 'theme') || {}).value || 'default';
+function syncTheme() { const t = themeSetting(); if (t !== appliedTheme) applyTheme(t); }
+function setTheme(name) {
+  const rec = {id:'theme', value:name};
+  D.settings = (D.settings || []).filter(x => x.id !== 'theme').concat(rec);
+  syncColl('settings', [rec]);
+  try { localStorage.setItem('fin_theme_local', name); } catch (e) {}
+  haptic('success'); render();
+}
+function applyTheme(name) {
+  const t = THEMES[name] ? name : 'default';
+  appliedTheme = t;
+  try { localStorage.setItem('fin_theme_local', t); } catch (e) {}
+  if (t === 'default') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;
+  if (t !== 'default' && !document.getElementById('jpfont')) {   // шрифты темы грузим только когда она включена
+    const l = document.createElement('link'); l.id = 'jpfont'; l.rel = 'stylesheet';
+    l.href = 'https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap';
+    document.head.appendChild(l);
+  }
+  try { if (IN_TG) { TG.setHeaderColor(THEMES[t].head); TG.setBackgroundColor(THEMES[t].bg); TG.setBottomBarColor && TG.setBottomBarColor(THEMES[t].bottom); } } catch (e) {}
+}
+
 async function init() {
   $('#fab').innerHTML = icon('plus', 26);
   document.querySelectorAll('#tabs button').forEach(b => b.insertAdjacentHTML('afterbegin', icon(b.dataset.tab)));
@@ -1999,6 +2087,7 @@ async function init() {
     try { TG.BackButton.onClick(back); } catch (e) {}
     try { TG.setHeaderColor('#1a0d33'); TG.setBackgroundColor('#0d0619'); TG.setBottomBarColor && TG.setBottomBarColor('#160d2c'); } catch (e) {}
   }
+  { let t0 = 'default'; try { t0 = localStorage.getItem('fin_theme_local') || 'default'; } catch (e) {} applyTheme(t0); }   // сразу, до загрузки
   document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { ui.tab = b.dataset.tab; ui.qaOpen = false; render(); window.scrollTo(0, 0); });
   try {
     const res = await Store.loadAll();
