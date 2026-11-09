@@ -837,7 +837,6 @@ function viewAn() {
   const total = ui.anType === 'expense' ? a.totalExp : a.totalInc;
   let h = seg('anPeriod', [['month','Месяц'],['year','Год']]) +
     monthNav('App.anShift(-1)', 'App.anShift(1)', periodLabel()) + summary(a) +
-    `<div class="hint" style="margin:-4px 4px 12px">${a.refunds > 0 ? `Учтены возвраты на ${money(a.refunds)}: они уменьшают расходы в месяце покупки. ` : ''}Переводы между своими счетами в доходы и расходы не входят.</div>` +
     seg('anType', [['expense','Расходы по категориям'],['income','Доходы по категориям']]) + '<div class="card">';
   if (!groups.length) h += '<div class="empty">Нет операций за этот период</div>';
   groups.forEach((g, i) => {
@@ -1199,6 +1198,35 @@ async function pinOff() {
   syncColl('settings', [], ['pin']); ui.pinLater = true; toast('Пин-код отключен'); render();
 }
 
+/* ================= Заполненность облака =================
+   Лимит Telegram: 1024 записи по 4096 байт. Считаем так же, как сохраняет приложение:
+   каждый блок (счета, категории, настройки, операции месяца) режется на куски до 3800 байт; +1 запись — оглавление. */
+function cloudUsage() {
+  const enc = new TextEncoder(), MAXB = 3800, LIMIT = 1024;
+  const size = v => v && (!Array.isArray(v) || v.length) ? enc.encode(JSON.stringify(v)).length : 0;
+  const blobs = [size(D.accounts), size(D.cats), size(D.settings)];
+  const byMonth = {};
+  for (const t of D.tx) (byMonth[t.date.slice(0,7)] = byMonth[t.date.slice(0,7)] || []).push(t);
+  for (const list of Object.values(byMonth)) blobs.push(size(list));
+  const keys = 1 + blobs.reduce((s, b) => s + Math.ceil(b / MAXB), 0), bytes = blobs.reduce((s, b) => s + b, 0);
+  // Темп: сколько байт добавили операции за последние 90 дней
+  const from = (() => { const d = new Date(todayStr() + 'T12:00:00'); d.setDate(d.getDate() - 90); return dateStr(d); })();
+  const recent = D.tx.filter(t => t.date >= from).reduce((s, t) => s + enc.encode(JSON.stringify(t)).length + 1, 0);
+  const keysPerMonth = recent / 3 / MAXB + 0.5;                 // +0,5 — неполный последний кусок месяца
+  const left = Math.max(0, LIMIT - 10 - keys);                  // небольшой запас на служебные записи
+  const monthsLeft = recent > 0 ? left / keysPerMonth : null;
+  return {keys, bytes, limit:LIMIT, pct:keys / LIMIT * 100, monthsLeft};
+}
+function usageBlock() {
+  const u = cloudUsage(), pct = Math.max(0.1, u.pct), col = pct >= 90 ? 'var(--red)' : pct >= 70 ? '#ffd166' : 'var(--green)';
+  const fmtLeft = mo => { if (mo == null) return ''; if (mo >= 240) return 'больше 20 лет'; const y = Math.floor(mo / 12), m = Math.floor(mo % 12);
+    return [y ? `${y} ${plural(y, 'год', 'года', 'лет')}` : '', m ? `${m} ${plural(m, 'месяц', 'месяца', 'месяцев')}` : ''].filter(Boolean).join(' ') || 'меньше месяца'; };
+  return `<div class="day">${Store.cloud ? 'Облако Telegram' : 'Хранилище (тестовый режим)'}</div><div class="card pad">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><b style="font-size:17px">Занято ${pct < 1 ? pct.toFixed(1) : Math.round(pct)}%</b><span class="hint">${u.keys} из ${u.limit} записей</span></div>
+    <div class="bar" style="height:8px;margin-top:8px"><i style="width:${Math.min(100, pct)}%;background:${col}"></i></div>
+    <div class="hint" style="margin-top:8px">${NF.format(Math.round(u.bytes / 1024))} КБ данных · ${D.tx.length} ${plural(D.tx.length, 'операция', 'операции', 'операций')}${u.monthsLeft != null ? `. При нынешнем темпе места хватит примерно на ${fmtLeft(u.monthsLeft)}` : ''}.</div></div>`;
+}
+
 function viewAcc() {
   // Защита: нет кода — предлагаем придумать (можно «Позже»); код есть и не введен — просим ввести
   if (ui.pinSetup || (!pinOn() && !ui.pinLater)) { if (pin.mode === 'unlock') pin.mode = 'set1'; return viewPin(); }
@@ -1257,7 +1285,7 @@ function viewAcc() {
     <div class="hint">${pinOn() ? 'Страница «Счета» открывается по пин-коду. Если свернуть приложение — код не спросит, если закрыть — спросит снова.' : 'Пин-код не установлен: «Счета» открываются без него.'}</div>
     ${pinOn() ? `<button class="btn sec" onclick="App.pinChange()">Сменить пин-код</button><button class="btn danger" onclick="App.pinOff()">Отключить пин-код</button>`
       : `<button class="btn sec" onclick="App.pinChange()">Установить пин-код</button>`}
-  </div>`;
+  </div>` + usageBlock();
   return h;
 }
 
@@ -1873,7 +1901,8 @@ async function delCat() {
 function catTx(id, tree) {
   ui.histSel = null;
   openSheet(() => {
-    const per = periodFn();
+    // Выбран столбик — показываем операции того месяца; иначе — месяца/года, открытого в аналитике
+    const per = ui.histSel ? (m => m === ui.histSel) : periodFn();
     const ids = new Set(tree ? [id, ...childrenOf(id).map(c => c.id)] : [id]);
     const catOf = t => { const o = t.type === 'refund' && t.ref && txById(t.ref); return t.cat || (o && o.cat) || '_none'; };
     const list = D.tx.filter(t => ui.anType === 'expense'
@@ -1881,7 +1910,7 @@ function catTx(id, tree) {
         : ((t.type === 'income' && per(t.date.slice(0,7))) || (isIncRefund(t) && per(effMonth(t)))))
       .filter(t => ids.has(catOf(t))).sort(sortTx);
     const name = id === '_none' ? 'Без категории' : (catPath(id) + (!tree && childrenOf(id).length ? ' — общее' : ''));
-    return sheetHead(esc(name)) + catHistory(id, tree) + `<div class="hint" style="margin:4px 4px 0">Операции · ${periodLabel()}</div>` + (list.length ? groupByDay(list) : '<div class="empty">Нет операций</div>');
+    return sheetHead(esc(name)) + catHistory(id, tree) + `<div class="hint" style="margin:4px 4px 0">Операции · ${ui.histSel ? monthLabel(ui.histSel) : periodLabel()}</div>` + (list.length ? groupByDay(list) : '<div class="empty">Нет операций</div>');
   });
 }
 
